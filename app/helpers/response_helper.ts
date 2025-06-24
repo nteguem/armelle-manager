@@ -234,12 +234,7 @@ export class ResponseHelper {
   /**
    * Réponse d'erreur standard
    */
-  static error(
-    message: string,
-    code: string,
-    statusCode: number = HttpStatus.BAD_REQUEST,
-    details?: any
-  ): ErrorResponse {
+  static error(message: string, code: string, details?: any): ErrorResponse {
     return {
       status: ResponseStatus.ERROR,
       message,
