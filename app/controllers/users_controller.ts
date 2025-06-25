@@ -1,16 +1,12 @@
-// app/controllers/users_controller.ts
-
 import type { HttpContext } from '@adonisjs/core/http'
+import hash from '@adonisjs/core/services/hash'
+import crypto from 'node:crypto'
 import User from '#models/user'
 import Role from '#models/role'
 import { ResponseHelper } from '#helpers/response_helper'
 import { ErrorCodes } from '#constants'
 
 export default class UsersController {
-  /**
-   * GET /api/users
-   * Lister tous les utilisateurs avec pagination et filtres
-   */
   async index({ request, response }: HttpContext) {
     try {
       const page = request.input('page', 1)
@@ -21,10 +17,8 @@ export default class UsersController {
       const sortBy = request.input('sort_by', 'created_at')
       const sortOrder = request.input('sort_order', 'desc')
 
-      // Construction de la requête
       const query = User.query()
 
-      // Filtres
       if (search) {
         query.where((builder) => {
           builder
@@ -42,23 +36,18 @@ export default class UsersController {
         query.where('status', status)
       }
 
-      // Tri
       if (['created_at', 'last_login', 'email', 'first_name', 'last_name'].includes(sortBy)) {
         query.orderBy(sortBy, sortOrder === 'desc' ? 'desc' : 'asc')
       }
 
-      // Préchargement des relations
       query.preload('role')
 
-      // Pagination
       const users = await query.paginate(page, limit)
 
-      // Récupérer les rôles disponibles pour les filtres
       const availableRoles = await Role.query()
         .select('id', 'name', 'display_name')
         .where('status', 'active')
 
-      // Format de réponse
       const paginationMeta = {
         current_page: users.currentPage,
         per_page: users.perPage,
@@ -110,10 +99,6 @@ export default class UsersController {
     }
   }
 
-  /**
-   * POST /api/users
-   * Créer un nouvel utilisateur
-   */
   async store({ request, response }: HttpContext) {
     try {
       const {
@@ -121,7 +106,7 @@ export default class UsersController {
         first_name: firstName,
         last_name: lastName,
         role_id: roleId,
-        status = 'pending',
+        status,
         send_welcome_email: sendWelcomeEmail = true,
       } = request.only([
         'email',
@@ -132,7 +117,6 @@ export default class UsersController {
         'send_welcome_email',
       ])
 
-      // Validation
       if (!email || !firstName || !lastName || !roleId) {
         return response
           .status(400)
@@ -144,36 +128,41 @@ export default class UsersController {
           )
       }
 
-      // Vérifier que l'email n'existe pas déjà
       const existingUser = await User.findBy('email', email)
       if (existingUser) {
         return response.status(409).json(ResponseHelper.emailAlreadyExists())
       }
 
-      // Vérifier que le rôle existe
       const role = await Role.find(roleId)
       if (!role) {
         return response.status(404).json(ResponseHelper.roleNotFound())
       }
 
-      // Créer l'utilisateur
+      let userStatus: 'pending' | 'active' | 'inactive' | 'suspended' | 'deleted'
+      if (sendWelcomeEmail) {
+        userStatus = 'pending'
+      } else {
+        userStatus =
+          (status as 'pending' | 'active' | 'inactive' | 'suspended' | 'deleted') || 'active'
+      }
+
+      const tempPassword = crypto.randomBytes(32).toString('hex')
+
       const user = await User.create({
         email,
         firstName,
         lastName,
         roleId,
-        status: sendWelcomeEmail ? 'pending' : status,
-        password: 'temporary_password',
+        status: userStatus,
+        password: await hash.make(tempPassword),
         loginCount: 0,
       })
 
-      // Charger le rôle pour la réponse
       await user.load('role')
 
-      // Actions déclenchées
       const actions = {
         welcome_email_sent: sendWelcomeEmail,
-        password_reset_token_generated: sendWelcomeEmail,
+        password_reset_token_generated: true,
       }
 
       return response.status(201).json(ResponseHelper.userCreatedSuccess(user, actions))
@@ -184,10 +173,6 @@ export default class UsersController {
     }
   }
 
-  /**
-   * GET /api/users/:id
-   * Récupérer un utilisateur spécifique
-   */
   async show({ params, response }: HttpContext) {
     try {
       const user = await User.query()
@@ -238,10 +223,6 @@ export default class UsersController {
     }
   }
 
-  /**
-   * PUT /api/users/:id
-   * Mettre à jour un utilisateur
-   */
   async update({ params, request, response }: HttpContext) {
     try {
       const user = await User.find(params.id)
@@ -257,10 +238,8 @@ export default class UsersController {
         status,
       } = request.only(['email', 'first_name', 'last_name', 'role_id', 'status'])
 
-      // Tracker les changements pour l'audit
       const changes: Record<string, { old: any; new: any }> = {}
 
-      // Vérifier l'unicité de l'email si modifié
       if (email && email !== user.email) {
         const existingUser = await User.findBy('email', email)
         if (existingUser) {
@@ -305,10 +284,6 @@ export default class UsersController {
     }
   }
 
-  /**
-   * PUT /api/users/:id/status
-   * Changer le statut d'un utilisateur
-   */
   async updateStatus({ params, request, response, auth }: HttpContext) {
     try {
       const user = await User.find(params.id)
@@ -356,10 +331,6 @@ export default class UsersController {
     }
   }
 
-  /**
-   * POST /api/users/:id/reset-password
-   * Réinitialisation administrative du mot de passe
-   */
   async adminResetPassword({ params, request, response, auth }: HttpContext) {
     try {
       const user = await User.find(params.id)
@@ -372,7 +343,6 @@ export default class UsersController {
         'custom_message',
       ])
 
-      // Utilisation de customMessage pour éviter l'erreur "never read"
       const messageToLog = customMessage || 'Standard password reset message'
       console.log('Reset message:', messageToLog)
 
@@ -400,10 +370,6 @@ export default class UsersController {
     }
   }
 
-  /**
-   * DELETE /api/users/:id
-   * Supprimer un utilisateur (soft delete)
-   */
   async destroy({ params, response, auth }: HttpContext) {
     try {
       const user = await User.find(params.id)
@@ -413,12 +379,10 @@ export default class UsersController {
 
       const currentUser = auth.getUserOrFail()
 
-      // Règle métier : Ne peut pas supprimer son propre compte
       if (user.id === currentUser.id) {
         return response.status(403).json(ResponseHelper.cannotDeleteSelf())
       }
 
-      // Règle métier : Vérifier que ce n'est pas le dernier admin
       if (user.role?.name === 'admin') {
         const adminCountResult = await User.query()
           .whereHas('role', (roleQuery) => {
@@ -434,7 +398,6 @@ export default class UsersController {
         }
       }
 
-      // Soft delete
       user.status = 'deleted'
       await user.save()
 
