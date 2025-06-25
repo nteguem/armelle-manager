@@ -1,6 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
 import hash from '@adonisjs/core/services/hash'
-import crypto from 'node:crypto'
 import User from '#models/user'
 import Role from '#models/role'
 import { ResponseHelper } from '#helpers/response_helper'
@@ -146,7 +145,9 @@ export default class UsersController {
           (status as 'pending' | 'active' | 'inactive' | 'suspended' | 'deleted') || 'active'
       }
 
-      const tempPassword = crypto.randomBytes(32).toString('hex')
+      // TODO: SÉCURITÉ - Remplacer par un système de token/email en production
+      // Pour le développement seulement - mot de passe temporaire fixe
+      const tempPassword = 'TempPassword123!'
 
       const user = await User.create({
         email,
