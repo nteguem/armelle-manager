@@ -3,6 +3,7 @@ import { DateTime } from 'luxon'
 import User from '#models/user'
 import { ResponseHelper } from '#helpers/response_helper'
 import { ErrorCodes } from '#constants'
+import hash from '@adonisjs/core/services/hash'
 
 export default class AuthController {
   /**
@@ -26,8 +27,27 @@ export default class AuthController {
           )
       }
 
-      // Vérifier les credentials avec User.verifyCredentials
-      const user = await User.verifyCredentials(email, password)
+      // Debug temporaire pour VPS
+      console.log('🔍 VPS Debug - Email reçu:', email)
+      console.log('🔍 VPS Debug - Password reçu:', password)
+
+      // Chercher l'utilisateur
+      const user = await User.findBy('email', email)
+      if (!user) {
+        console.log('❌ VPS - Utilisateur non trouvé')
+        throw new Error('User not found')
+      }
+
+      console.log('✅ VPS - Utilisateur trouvé:', user.email)
+      console.log('🔑 VPS - Hash en base:', user.password)
+
+      // Vérifier le mot de passe manuellement
+      const isValid = await hash.verify(user.password, password)
+      console.log('🔐 VPS - Mot de passe valide?', isValid)
+
+      if (!isValid) {
+        throw new Error('Invalid password')
+      }
 
       // Charger le rôle et permissions
       await user.load('role', (roleQuery) => {
@@ -59,6 +79,7 @@ export default class AuthController {
         .status(200)
         .json(ResponseHelper.loginSuccess(token.value!.release(), user, rememberMe))
     } catch (error) {
+      console.log('❌ VPS - Erreur dans login:', error.message)
       // Erreur d'authentification
       return response.status(401).json(ResponseHelper.authInvalidCredentials())
     }
