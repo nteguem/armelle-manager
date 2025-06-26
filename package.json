@@ -33,7 +33,9 @@
     "#constants/*": "./app/constants/*.js",
     "#constants": "./app/constants/index.js",
     "#helpers/*": "./app/helpers/*.js",
-    "#helpers": "./app/helpers/index.js"
+    "#helpers": "./app/helpers/index.js",
+    "#bot/*": "./app/bot/*.js",
+    "#bot/*/*": "./app/bot/*/*.js"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^7.8.2",
@@ -59,11 +61,14 @@
     "@adonisjs/core": "^6.18.0",
     "@adonisjs/cors": "^2.2.1",
     "@adonisjs/lucid": "^21.6.1",
+    "@types/socket.io": "^3.0.2",
     "@vinejs/vine": "^3.0.1",
+    "@whiskeysockets/baileys": "^6.7.18",
     "crypto": "^1.0.1",
     "luxon": "^3.6.1",
     "pg": "^8.16.2",
-    "reflect-metadata": "^0.2.2"
+    "reflect-metadata": "^0.2.2",
+    "socket.io": "^4.8.1"
   },
   "hotHook": {
     "boundaries": [

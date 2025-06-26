@@ -1,0 +1,27 @@
+{
+  "bot_header": "Mon assistant Virtuel IGS/ Impôts Cameroun",
+
+  "step_progress": "Étape {current}/{total}",
+
+  "main_menu": "Bonjour {userName} ! Que puis-je faire pour vous ?\n\n1. 📊 Calculer mon IGS\n2. 👤 Mon Profil\n3. ❓ Aide",
+
+  "workflow_in_progress": "Workflow en cours : {workflow}\nÉtape : {step}\nVous avez dit : \"{input}\"",
+
+  "current_step": "Vous êtes actuellement dans le workflow {workflow} à l'étape {step}.",
+
+  "development_notice": "⚠️ En cours de développement",
+
+  "navigation_footer": "Tapez \"*\" pour revenir en arrière",
+
+  "main_menu_footer": "Tapez le numéro de votre choix",
+
+  "menu_footer": "Sélectionnez une option",
+
+  "commands_footer": "Tapez \"aide\" pour voir les commandes",
+
+  "continue_footer": "Tapez \"menu\" pour le menu principal",
+
+  "try_again_footer": "Veuillez réessayer",
+
+  "retry_footer": "Corrigez et renvoyez votre réponse"
+}

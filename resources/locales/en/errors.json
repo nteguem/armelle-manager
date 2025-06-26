@@ -1,0 +1,19 @@
+{
+  "generic_error": "Sorry, an error occurred. Please try again in a few moments.",
+
+  "cannot_go_back": "Cannot go back at this step.",
+
+  "translation_missing": "Missing translation for key: {key}",
+
+  "validation": {
+    "required_field": "This field is required.",
+    "invalid_format": "Invalid format. Please check your input.",
+    "invalid_phone": "Invalid phone number.",
+    "invalid_email": "Invalid email address.",
+    "invalid_amount": "Invalid amount. Use numbers only.",
+    "amount_too_low": "Amount is too low.",
+    "amount_too_high": "Amount is too high.",
+    "text_too_short": "Text too short. Minimum {min} characters.",
+    "text_too_long": "Text too long. Maximum {max} characters."
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "help_content": "🤖 Available commands:\n\n• fr - Switch to French\n• en - Switch to English\n• help - Show this help\n• menu - Main menu\n• * - Go back\n• cancel - Cancel action",
+
+  "workflow_cancelled": "✅ Action cancelled successfully.",
+
+  "language_french_commands": ["fr", "francais", "français", "fran"],
+  "language_english_commands": ["en", "english", "anglais", "eng"],
+  "help_commands": ["aide", "help", "?"],
+  "menu_commands": ["menu", "accueil", "home", "start"],
+  "back_commands": ["*", "retour", "back", "prev"],
+  "cancel_commands": ["annuler", "cancel", "stop", "arreter"]
+}

@@ -1,0 +1,12 @@
+{
+  "help_content": "🤖 Commandes disponibles :\n\n• fr - Passer en français\n• en - Passer en anglais\n• aide - Afficher cette aide\n• menu - Menu principal\n• * - Retour arrière\n• annuler - Annuler l'action",
+
+  "workflow_cancelled": "✅ Action annulée avec succès.",
+
+  "language_french_commands": ["fr", "francais", "français", "fran"],
+  "language_english_commands": ["en", "english", "anglais", "eng"],
+  "help_commands": ["aide", "help", "?"],
+  "menu_commands": ["menu", "accueil", "home", "start"],
+  "back_commands": ["*", "retour", "back", "prev"],
+  "cancel_commands": ["annuler", "cancel", "stop", "arreter"]
+}

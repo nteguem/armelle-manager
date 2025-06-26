@@ -1,0 +1,19 @@
+{
+  "generic_error": "Désolé, une erreur s'est produite. Veuillez réessayer dans quelques instants.",
+
+  "cannot_go_back": "Impossible de revenir en arrière à cette étape.",
+
+  "translation_missing": "Traduction manquante pour la clé : {key}",
+
+  "validation": {
+    "required_field": "Ce champ est obligatoire.",
+    "invalid_format": "Format invalide. Veuillez vérifier votre saisie.",
+    "invalid_phone": "Numéro de téléphone invalide.",
+    "invalid_email": "Adresse email invalide.",
+    "invalid_amount": "Montant invalide. Utilisez uniquement des chiffres.",
+    "amount_too_low": "Le montant est trop faible.",
+    "amount_too_high": "Le montant est trop élevé.",
+    "text_too_short": "Texte trop court. Minimum {min} caractères.",
+    "text_too_long": "Texte trop long. Maximum {max} caractères."
+  }
+}
