@@ -63,22 +63,6 @@ export default {
   },
 
   /**
-   * Configuration Socket.IO pour QR Code
-   */
-  socket: {
-    enabled: env.get('SOCKET_ENABLED', true),
-    port: env.get('SOCKET_PORT', 3334),
-    cors: {
-      origin: env.get('SOCKET_CORS_ORIGIN', 'http://localhost:3000'),
-      credentials: true,
-    },
-    qr: {
-      updateIntervalMs: env.get('SOCKET_QR_UPDATE_INTERVAL', 2000),
-      expirationMinutes: env.get('SOCKET_QR_EXPIRATION', 5),
-    },
-  },
-
-  /**
    * Configuration logging bot
    */
   logging: {

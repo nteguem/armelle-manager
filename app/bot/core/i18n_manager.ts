@@ -1,8 +1,10 @@
+import logger from '@adonisjs/core/services/logger'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import type { SupportedLanguage } from '#bot/types/bot_types'
 
 /**
  * Gestionnaire des traductions multilingues
- * Système strict sans texte en dur
  */
 export default class I18nManager {
   private static instance: I18nManager
@@ -31,23 +33,61 @@ export default class I18nManager {
   }
 
   /**
-   * Charge toutes les traductions
+   * Charge toutes les traductions depuis les fichiers JSON
+   * Détecte automatiquement tous les fichiers .json dans chaque dossier de langue
    */
   private async loadAllTranslations(): Promise<void> {
     const languages: SupportedLanguage[] = ['fr', 'en']
-    const files = ['common', 'commands', 'workflows', 'errors']
 
     for (const language of languages) {
-      for (const file of files) {
-        try {
-          const translationModule = await import(`#resources/locales/${language}/${file}.json`)
-          const translations = translationModule.default || translationModule
-          this.translations.set(`${language}.${file}`, translations)
-        } catch (error) {
-          console.warn(`Translation file not found: ${language}/${file}.json`)
-          // Continuer le chargement même si un fichier manque
+      try {
+        // Utilise votre structure: resources/locales au lieu de resources/lang
+        const languageDir = join(process.cwd(), 'resources', 'locales', language)
+        const files = await this.scanJsonFiles(languageDir)
+
+        for (const file of files) {
+          try {
+            const filePath = join(languageDir, `${file}.json`)
+            const fileContent = await readFile(filePath, 'utf-8')
+            const translations = JSON.parse(fileContent)
+
+            this.translations.set(`${language}.${file}`, translations)
+            logger.info({ language, file }, 'Translation file loaded')
+          } catch (error) {
+            logger.warn({ language, file, error: error.message }, 'Failed to load translation file')
+          }
         }
+      } catch (error) {
+        logger.warn({ language, error: error.message }, 'Language directory not found')
       }
+    }
+
+    const totalFiles = this.translations.size
+    logger.info({ totalFiles }, 'I18nManager initialized successfully')
+  }
+
+  /**
+   * Scan automatique des fichiers JSON dans un dossier
+   */
+  private async scanJsonFiles(directory: string): Promise<string[]> {
+    try {
+      const { readdir } = await import('node:fs/promises')
+      const files = await readdir(directory)
+
+      const jsonFiles = files
+        .filter((file) => file.endsWith('.json'))
+        .map((file) => file.replace('.json', ''))
+        .sort() // Tri alphabétique pour un ordre prévisible
+
+      logger.debug(
+        { directory, totalFiles: files.length, jsonFiles: jsonFiles.length },
+        'Scanned directory for JSON files'
+      )
+
+      return jsonFiles
+    } catch (error) {
+      logger.debug({ directory, error: error.message }, 'Cannot scan directory')
+      return []
     }
   }
 
@@ -186,6 +226,7 @@ export default class I18nManager {
    * Recharge les traductions (utile en développement)
    */
   public async reload(): Promise<void> {
+    logger.info('Reloading I18nManager translations')
     this.translations.clear()
     await this.loadAllTranslations()
   }
@@ -230,5 +271,39 @@ export default class I18nManager {
     }
 
     return stats
+  }
+
+  /**
+   * Méthode de debug pour vérifier les chemins et fichiers détectés
+   */
+  public async debugPaths(): Promise<void> {
+    const basePath = join(process.cwd(), 'resources', 'locales')
+    logger.info({ basePath }, 'I18nManager debug paths')
+
+    const languages: SupportedLanguage[] = ['fr', 'en']
+
+    for (const language of languages) {
+      const languageDir = join(basePath, language)
+      const files = await this.scanJsonFiles(languageDir)
+
+      if (files.length === 0) {
+        logger.warn({ language, languageDir }, 'No JSON files found in language directory')
+      } else {
+        logger.info(
+          { language, files, count: files.length },
+          'JSON files detected in language directory'
+        )
+
+        for (const file of files) {
+          const filePath = join(languageDir, `${file}.json`)
+          try {
+            await readFile(filePath, 'utf-8')
+            logger.debug({ language, file }, 'File is readable')
+          } catch {
+            logger.warn({ language, file, filePath }, 'File is not readable')
+          }
+        }
+      }
+    }
   }
 }

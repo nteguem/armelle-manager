@@ -9,17 +9,17 @@ export default class extends BaseSchema {
 
       // Identifiants utilisateur
       table.string('phone_number', 20).notNullable().unique()
-      table.string('full_name', 255).notNullable()
+      table.string('full_name', 255).nullable()
       table.string('language', 2).defaultTo('fr').notNullable()
 
-      // Statut et préférences
+      // Statut utilisateur
       table.boolean('is_active').defaultTo(true).notNullable()
       table.boolean('is_verified').defaultTo(false).notNullable()
-      table.json('preferences').defaultTo('{}').notNullable()
+
+      // Relation taxpayer
+      table.uuid('taxpayer_id').nullable()
 
       // Métadonnées
-      table.timestamp('last_interaction_at').nullable()
-      table.integer('total_messages').defaultTo(0).notNullable()
       table.string('registration_channel', 20).defaultTo('whatsapp').notNullable()
 
       // Timestamps
@@ -30,7 +30,7 @@ export default class extends BaseSchema {
       table.index(['phone_number'])
       table.index(['is_active'])
       table.index(['language'])
-      table.index(['last_interaction_at'])
+      table.index(['taxpayer_id'])
     })
   }
 

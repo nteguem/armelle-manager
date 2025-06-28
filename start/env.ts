@@ -67,13 +67,6 @@ export default await Env.create(new URL('../', import.meta.url), {
   BOT_WORKFLOW_STEP_TIMEOUT: Env.schema.number.optional(),
   BOT_PERSIST_CONTEXT_ON_ERROR: Env.schema.boolean.optional(),
 
-  // Socket.IO
-  SOCKET_ENABLED: Env.schema.boolean.optional(),
-  SOCKET_PORT: Env.schema.number.optional(),
-  SOCKET_CORS_ORIGIN: Env.schema.string.optional(),
-  SOCKET_QR_UPDATE_INTERVAL: Env.schema.number.optional(),
-  SOCKET_QR_EXPIRATION: Env.schema.number.optional(),
-
   // Logging
   BOT_LOG_MESSAGES: Env.schema.boolean.optional(),
   BOT_LOG_WORKFLOW_STEPS: Env.schema.boolean.optional(),

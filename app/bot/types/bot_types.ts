@@ -197,3 +197,119 @@ export interface BotEvent {
   readonly timestamp: Date
   readonly source: string
 }
+
+/**
+ * Définition complète d'un workflow
+ */
+export interface WorkflowDefinition {
+  readonly id: string
+  readonly version: string
+  readonly initialStep: string
+  readonly steps: Record<string, WorkflowStep>
+  readonly metadata?: Record<string, any>
+}
+
+/**
+ * Étape d'un workflow
+ */
+export interface WorkflowStep {
+  readonly id: string
+  readonly type: 'input' | 'menu' | 'display' | 'api' | 'validation' | 'branch'
+  readonly messageKey: string
+  readonly validation?: ValidationRule
+  readonly transitions: Record<string, Transition>
+  readonly metadata?: Record<string, any>
+  readonly allowSystemCommands?: boolean
+}
+
+/**
+ * Règle de validation pour une étape
+ */
+export interface ValidationRule {
+  readonly type: 'text' | 'number' | 'phone' | 'email' | 'name' | 'amount'
+  readonly required?: boolean
+  readonly minLength?: number
+  readonly maxLength?: number
+  readonly min?: number
+  readonly max?: number
+  readonly pattern?: string
+}
+
+/**
+ * Transition entre étapes
+ */
+export interface Transition {
+  readonly target: string
+  readonly condition?: string
+  readonly action?: string
+  readonly dataMapping?: Record<string, string>
+}
+
+/**
+ * Résultat d'exécution de workflow
+ */
+export interface WorkflowResult {
+  readonly success: boolean
+  readonly response: string
+  readonly nextStep?: string
+  readonly completed?: boolean
+  readonly error?: string
+}
+
+/**
+ * Contexte d'action workflow
+ */
+export interface ActionContext {
+  readonly sessionId: string
+  readonly context: Record<string, any>
+  readonly input: string
+  readonly session: any
+  readonly botUser: any
+}
+
+/**
+ * Résultat d'action workflow
+ */
+export interface ActionResult {
+  readonly success?: boolean
+  readonly nextStep?: string
+  readonly error?: string
+  readonly data?: Record<string, any>
+}
+
+/**
+ * Résultat de recherche DGI
+ */
+export interface SearchResult {
+  niu: string
+  nom: string
+  prenom: string
+  lieuNaissance?: string
+  numeroDocument?: string
+  activite?: string
+  regime?: string
+  centre: string
+}
+
+/**
+ * Résultat de vérification NIU DGI
+ */
+export interface VerifyResult {
+  niu: string
+  nom: string
+  prenom: string
+  numeroDocument: string
+  activite: string
+  regime: string
+  etat: string
+}
+
+/**
+ * Réponse générique du scraper DGI
+ */
+export interface ScraperResponse<T> {
+  success: boolean
+  message: string
+  data: T | null
+  type?: string
+}

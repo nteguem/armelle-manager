@@ -8,13 +8,7 @@ import type {
   ContextManager as IContextManager,
 } from '#bot/types/bot_types'
 
-/**
- * Gestionnaire du contexte et des sessions utilisateur
- */
 export default class ContextManager implements IContextManager {
-  /**
-   * Récupère ou crée un utilisateur bot
-   */
   public async getOrCreateBotUser(
     phoneNumber: string,
     fullName: string,
@@ -31,20 +25,12 @@ export default class ContextManager implements IContextManager {
         registrationChannel: channel,
         isActive: true,
         isVerified: false,
-        preferences: {},
-        totalMessages: 0,
       })
-    } else {
-      // Mettre à jour la dernière interaction
-      await botUser.updateLastInteraction()
     }
 
     return botUser
   }
 
-  /**
-   * Récupère une session existante
-   */
   public async getSession(
     channel: MessageChannel,
     channelUserId: string
@@ -59,9 +45,6 @@ export default class ContextManager implements IContextManager {
     return session.getFullContext()
   }
 
-  /**
-   * Crée une nouvelle session
-   */
   public async createSession(
     channel: MessageChannel,
     channelUserId: string
@@ -99,8 +82,8 @@ export default class ContextManager implements IContextManager {
       activeWorkflows: [],
       isActive: true,
       lastActivityAt: DateTime.now(),
+      lastInteractionAt: DateTime.now(),
       messageCount: 0,
-      userAgent: null,
     })
 
     // Définir expiration par défaut
@@ -109,9 +92,6 @@ export default class ContextManager implements IContextManager {
     return session.getFullContext()
   }
 
-  /**
-   * Met à jour une session
-   */
   public async updateSession(sessionId: string, updates: Partial<SessionContext>): Promise<void> {
     const session = await BotSession.findOrFail(sessionId)
 
@@ -139,9 +119,6 @@ export default class ContextManager implements IContextManager {
     await session.save()
   }
 
-  /**
-   * Expire une session
-   */
   public async expireSession(sessionId: string): Promise<void> {
     const session = await BotSession.findOrFail(sessionId)
     session.isActive = false
@@ -149,9 +126,6 @@ export default class ContextManager implements IContextManager {
     await session.save()
   }
 
-  /**
-   * Récupère ou crée une session active
-   */
   public async getOrCreateSession(
     channel: MessageChannel,
     channelUserId: string
@@ -179,9 +153,6 @@ export default class ContextManager implements IContextManager {
     return { session, context, isNew }
   }
 
-  /**
-   * Change la langue d'une session
-   */
   public async changeLanguage(sessionId: string, language: SupportedLanguage): Promise<void> {
     const session = await BotSession.findOrFail(sessionId)
     const botUser = await session.related('botUser').query().firstOrFail()
@@ -193,9 +164,6 @@ export default class ContextManager implements IContextManager {
     await session.setPersistentData('language', language)
   }
 
-  /**
-   * Démarre un workflow dans une session
-   */
   public async startWorkflow(
     sessionId: string,
     workflowId: string,
@@ -210,9 +178,6 @@ export default class ContextManager implements IContextManager {
     await session.save()
   }
 
-  /**
-   * Change d'étape dans le workflow actuel
-   */
   public async moveToStep(
     sessionId: string,
     stepId: string,
@@ -222,33 +187,21 @@ export default class ContextManager implements IContextManager {
     await session.moveToStep(stepId, context)
   }
 
-  /**
-   * Retour arrière dans la navigation
-   */
   public async goBack(sessionId: string): Promise<boolean> {
     const session = await BotSession.findOrFail(sessionId)
     return await session.goBack()
   }
 
-  /**
-   * Termine le workflow actuel
-   */
   public async completeWorkflow(sessionId: string): Promise<void> {
     const session = await BotSession.findOrFail(sessionId)
     await session.completeWorkflow()
   }
 
-  /**
-   * Abandonne le workflow actuel
-   */
   public async abandonWorkflow(sessionId: string): Promise<void> {
     const session = await BotSession.findOrFail(sessionId)
     await session.abandonWorkflow()
   }
 
-  /**
-   * Récupère les statistiques d'une session
-   */
   public async getSessionStats(sessionId: string): Promise<{
     messageCount: number
     workflowsCompleted: number
@@ -269,9 +222,6 @@ export default class ContextManager implements IContextManager {
     }
   }
 
-  /**
-   * Nettoie les sessions expirées
-   */
   public async cleanupExpiredSessions(): Promise<number> {
     const expiredSessions = await BotSession.expired()
 
@@ -283,9 +233,6 @@ export default class ContextManager implements IContextManager {
     return expiredSessions.length
   }
 
-  /**
-   * Trouve ou crée un utilisateur à partir des infos canal
-   */
   private async findOrCreateUserFromChannel(
     channel: MessageChannel,
     channelUserId: string
@@ -295,16 +242,14 @@ export default class ContextManager implements IContextManager {
       let botUser = await BotUser.findByPhone(channelUserId)
 
       if (!botUser) {
-        // Créer utilisateur temporaire sans nom (sera complété pendant onboarding)
+        // Créer utilisateur avec fullName null (sera complété pendant onboarding)
         botUser = await BotUser.create({
           phoneNumber: channelUserId,
-          fullName: 'Utilisateur Temporaire',
+          fullName: null,
           language: 'fr',
           registrationChannel: channel,
           isActive: true,
           isVerified: false,
-          preferences: {},
-          totalMessages: 0,
         })
       }
 

@@ -20,7 +20,7 @@ export default class extends BaseSchema {
       table.string('channel_user_id', 100).notNullable() // phone, telegram_id, discord_id
 
       // État workflow complexe
-      table.string('current_workflow', 50).nullable() // 'onboarding', 'igs_calculator'
+      table.string('current_workflow', 50).nullable() // 'onboarding', 'igs_calculator' etc.
       table.string('current_step', 50).nullable() // 'collect_name', 'calculate'
       table.json('current_context').defaultTo('{}').notNullable() // données workflow temporaires
       table.json('persistent_context').defaultTo('{}').notNullable() // données cross-workflow
@@ -31,11 +31,11 @@ export default class extends BaseSchema {
       // Statut session
       table.boolean('is_active').defaultTo(true).notNullable()
       table.timestamp('last_activity_at').defaultTo(this.now()).notNullable()
+      table.timestamp('last_interaction_at').nullable()
       table.timestamp('expires_at').nullable()
 
       // Métadonnées
       table.integer('message_count').defaultTo(0).notNullable()
-      table.string('user_agent', 500).nullable() // info device si disponible
 
       // Timestamps
       table.timestamp('created_at').defaultTo(this.now()).notNullable()
@@ -46,6 +46,7 @@ export default class extends BaseSchema {
       table.index(['bot_user_id'])
       table.index(['is_active'])
       table.index(['last_activity_at'])
+      table.index(['last_interaction_at'])
       table.index(['current_workflow'])
     })
   }

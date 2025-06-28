@@ -1,0 +1,27 @@
+{
+  "onboarding": {
+    "welcome_collect_name": "👋 Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\n\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
+
+    "input_name_footer": "Saisissez votre nom ou raison sociale",
+
+    "searching_dgi": "🔍 Recherche en cours...\n\nVérification de votre identité dans la base DGI.\nVeuillez patienter...",
+
+    "no_results_found": "❌ Aucun contribuable trouvé avec \"{{ search_query }}\"\n\n1. Réessayer avec un autre nom\n2. Saisir votre NIU manuellement\n3. Continuer sans NIU",
+
+    "confirm_taxpayer": "✅ Contribuable trouvé !\n\n📋 {{ selected_taxpayer.nom }} {{ selected_taxpayer.prenom }}\n🆔 NIU : {{ selected_taxpayer.niu }}\n🏢 Centre : {{ selected_taxpayer.centre }}\n\n1. Oui, c'est moi\n2. Non, réessayer",
+
+    "select_taxpayer": "📋 {{ search_results.length }} contribuables trouvés\n\n{{#each search_results}}{{@index_1}}. {{ nom }} {{ prenom }} - {{ niu }}\n{{/each}}\n0. Aucun de ces profils",
+
+    "dgi_service_error": "⚠️ Service DGI temporairement indisponible\n\n1. Réessayer la recherche\n2. Saisir votre NIU manuellement\n3. Continuer sans vérification",
+
+    "enter_niu_manual": "Saisissez votre NIU (Numéro d'Identification Unique) :\n\nExemple : P039816725402F",
+
+    "verifying_niu": "🔍 Vérification NIU en cours...\n\nValidation de votre NIU auprès de la DGI.\nVeuillez patienter...",
+
+    "confirm_manual_taxpayer": "✅ NIU validé !\n\n📋 {{ manual_taxpayer.nom }} {{ manual_taxpayer.prenom }}\n🆔 NIU : {{ manual_taxpayer.niu }}\n🏛️ Activité : {{ manual_taxpayer.activite }}\n📊 Statut : {{ manual_taxpayer.etat }}\n\n1. Oui, c'est correct\n2. Non, continuer sans NIU",
+
+    "success_complete": "🎉 Bienvenue {{ final_taxpayer.nom }} !\n\n✅ NIU : {{ final_taxpayer.niu }}\n📍 Centre : {{ final_taxpayer.centre }}\n👤 Statut : {{ final_taxpayer.status }}",
+
+    "completed": "🎉 Bienvenue ! Votre compte est configuré."
+  }
+}

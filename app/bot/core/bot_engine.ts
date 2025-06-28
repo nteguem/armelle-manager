@@ -6,56 +6,69 @@ import I18nManager from './i18n_manager.js'
 import MessageBuilder from './message_builder.js'
 import ContextManager from './context_manager.js'
 import SystemCommandHandler from './commands/system_command_handler.js'
+import WorkflowEngine from '../workflows/workflow_engine.js'
+import WhatsAppAdapter from './adapters/whatsapp_adapter.js'
+import {
+  OnboardingWorkflow,
+  OnboardingActions,
+} from '../workflows/definitions/onboarding_workflow.js'
 import type { IncomingMessage, OutgoingMessage } from '#bot/types/bot_types'
 
-/**
- * Moteur principal du bot
- * Orchestre le traitement des messages et la gestion des workflows
- */
 export default class BotEngine {
   private readonly i18n: I18nManager
   private readonly messageBuilder: MessageBuilder
   private readonly contextManager: ContextManager
   private readonly systemCommandHandler: SystemCommandHandler
+  private readonly workflowEngine: WorkflowEngine
+  private readonly whatsappAdapter: WhatsAppAdapter
 
   constructor() {
     this.i18n = I18nManager.getInstance()
     this.messageBuilder = new MessageBuilder()
     this.contextManager = new ContextManager()
     this.systemCommandHandler = new SystemCommandHandler()
+    this.workflowEngine = new WorkflowEngine()
+    this.whatsappAdapter = new WhatsAppAdapter()
   }
 
-  /**
-   * Initialise le moteur du bot
-   */
   public async initialize(): Promise<void> {
     await this.i18n.initialize()
+    this.workflowEngine.registerWorkflow(OnboardingWorkflow, OnboardingActions)
+    this.setupWhatsAppAdapter()
+    await this.whatsappAdapter.start()
     console.log('🤖 Bot Engine initialized')
   }
 
-  /**
-   * Traite un message entrant
-   */
+  private setupWhatsAppAdapter(): void {
+    this.whatsappAdapter.setCallbacks({
+      onMessageReceived: async (message: IncomingMessage) => {
+        try {
+          const response = await this.processMessage(message)
+          await this.whatsappAdapter.sendMessage(response)
+        } catch (error) {
+          console.error('❌ Error processing message:', error)
+        }
+      },
+    })
+  }
+
+  public isConnected(): boolean {
+    return this.whatsappAdapter.isConnected()
+  }
+
   public async processMessage(message: IncomingMessage): Promise<OutgoingMessage> {
     const startTime = Date.now()
 
     try {
-      // 1. Récupérer ou créer la session
       const { session, isNew } = await this.contextManager.getOrCreateSession(
         message.channel,
         message.channelUserId
       )
 
-      // 2. Sauvegarder le message entrant
       await this.saveIncomingMessage(message, session)
-
-      // 3. Traiter le message et générer la réponse
       const response = await this.generateResponse(message, session, isNew)
-
-      // 4. Sauvegarder le message sortant
       await this.saveOutgoingMessage(response, session)
 
-      // 5. Marquer le message comme traité avec succès
       const processingTime = Date.now() - startTime
       await this.markMessageAsProcessed(message, session, processingTime)
 
@@ -65,7 +78,6 @@ export default class BotEngine {
       const processingTime = Date.now() - startTime
       console.error('❌ Error processing message:', error)
 
-      // Marquer comme erreur si session disponible
       try {
         const session = await BotSession.findActiveSession(message.channel, message.channelUserId)
         if (session) {
@@ -75,14 +87,10 @@ export default class BotEngine {
         // Ignorer erreur de logging
       }
 
-      // Retourner message d'erreur générique
       return this.createErrorResponse(message)
     }
   }
 
-  /**
-   * Génère la réponse appropriée
-   */
   private async generateResponse(
     message: IncomingMessage,
     session: BotSession,
@@ -90,55 +98,30 @@ export default class BotEngine {
   ): Promise<OutgoingMessage> {
     const botUser = await session.related('botUser').query().firstOrFail()
 
-    // 1. Traiter commandes système en priorité
     const systemResponse = await this.systemCommandHandler.handle(session, message.content)
     if (systemResponse) {
       return this.createOutgoingMessage(message, systemResponse, botUser.language)
     }
 
-    // 2. Si nouvelle session, démarrer onboarding
-    if (isNewSession || !botUser.isVerified) {
-      return await this.handleNewUser(message, session, botUser)
-    }
-
-    // 3. Si pas de workflow actuel, afficher menu principal
     if (!session.currentWorkflow) {
+      if (!botUser.isVerified) {
+        return await this.handleNewUser(message, session, botUser)
+      }
       return await this.handleMainMenu(message, botUser)
     }
 
-    // 4. Continuer le workflow en cours
-    // TODO: Déléguer au workflow engine
     return await this.handleWorkflowContinuation(message, session, botUser)
   }
 
-  /**
-   * Gère un nouvel utilisateur (onboarding)
-   */
   private async handleNewUser(
     message: IncomingMessage,
     session: BotSession,
     botUser: BotUser
   ): Promise<OutgoingMessage> {
-    // Démarrer le workflow d'onboarding
-    await this.contextManager.startWorkflow(session.id, 'onboarding', 'welcome')
-
-    const responseText = this.messageBuilder.buildWorkflowStep(
-      'workflows.onboarding',
-      'welcome',
-      1,
-      4,
-      botUser.language,
-      {
-        name: botUser.fullName,
-      }
-    )
-
-    return this.createOutgoingMessage(message, responseText, botUser.language)
+    const result = await this.workflowEngine.startWorkflow(session.id, 'onboarding')
+    return this.createOutgoingMessage(message, result.response, botUser.language)
   }
 
-  /**
-   * Affiche le menu principal
-   */
   private async handleMainMenu(
     message: IncomingMessage,
     botUser: BotUser
@@ -150,33 +133,28 @@ export default class BotEngine {
     return this.createOutgoingMessage(message, responseText, botUser.language)
   }
 
-  /**
-   * Continue le workflow en cours
-   */
   private async handleWorkflowContinuation(
     message: IncomingMessage,
     session: BotSession,
     botUser: BotUser
   ): Promise<OutgoingMessage> {
-    // Pour l'instant, réponse simple en attendant le workflow engine
-    const responseText = this.messageBuilder.build({
-      content: 'common.workflow_in_progress',
-      subheader: 'common.development_notice',
-      footer: 'common.navigation_footer',
-      language: botUser.language,
-      params: {
-        workflow: session.currentWorkflow,
-        step: session.currentStep,
-        input: message.content,
-      },
-    })
+    try {
+      const result = await this.workflowEngine.processInput(session.id, message.content)
 
-    return this.createOutgoingMessage(message, responseText, botUser.language)
+      if (result.completed) {
+        const menuResponse = await this.handleMainMenu(message, botUser)
+        return menuResponse
+      }
+
+      return this.createOutgoingMessage(message, result.response, botUser.language)
+    } catch (error) {
+      console.error('Workflow error:', error)
+      await this.contextManager.abandonWorkflow(session.id)
+      const errorText = this.messageBuilder.buildError('errors.generic_error', botUser.language)
+      return this.createOutgoingMessage(message, errorText, botUser.language)
+    }
   }
 
-  /**
-   * Sauvegarde un message entrant
-   */
   private async saveIncomingMessage(
     message: IncomingMessage,
     session: BotSession
@@ -201,9 +179,6 @@ export default class BotEngine {
     })
   }
 
-  /**
-   * Sauvegarde un message sortant
-   */
   private async saveOutgoingMessage(
     message: OutgoingMessage,
     session: BotSession
@@ -227,9 +202,6 @@ export default class BotEngine {
     })
   }
 
-  /**
-   * Marque un message comme traité avec succès
-   */
   private async markMessageAsProcessed(
     message: IncomingMessage,
     session: BotSession,
@@ -247,9 +219,6 @@ export default class BotEngine {
     }
   }
 
-  /**
-   * Marque un message comme échoué
-   */
   private async markMessageAsError(
     message: IncomingMessage,
     session: BotSession,
@@ -268,9 +237,6 @@ export default class BotEngine {
     }
   }
 
-  /**
-   * Crée un message sortant
-   */
   private createOutgoingMessage(
     originalMessage: IncomingMessage,
     content: string,
@@ -284,56 +250,23 @@ export default class BotEngine {
     }
   }
 
-  /**
-   * Crée un message d'erreur générique
-   */
   private createErrorResponse(message: IncomingMessage): OutgoingMessage {
-    const errorText = this.messageBuilder.buildError(
-      'errors.generic_error',
-      'fr' // Fallback vers français
-    )
-
+    const errorText = this.messageBuilder.buildError('errors.generic_error', 'fr')
     return this.createOutgoingMessage(message, errorText, 'fr')
   }
 
-  /**
-   * Récupère les statistiques du moteur
-   */
-  public async getStats(): Promise<{
-    totalMessages: number
-    averageProcessingTime: number
-    errorRate: number
-    activeUsers: number
-    activeSessions: number
-  }> {
-    const [activeUsers, activeSessions] = await Promise.all([
-      BotUser.active().count('* as total'),
-      BotSession.active().count('* as total'),
-    ])
-
-    const messageStats = await BotMessage.getPerformanceStats(24)
-
-    return {
-      totalMessages: messageStats.totalMessages,
-      averageProcessingTime: messageStats.averageProcessingTime,
-      errorRate: messageStats.errorRate,
-      activeUsers: Number(activeUsers[0].$extras.total),
-      activeSessions: Number(activeSessions[0].$extras.total),
+  public async shutdown(): Promise<void> {
+    try {
+      await this.whatsappAdapter.stop()
+      console.log('🤖 Bot shutdown completed')
+    } catch (error) {
+      console.error('❌ Error during shutdown:', error)
     }
   }
 
-  /**
-   * Nettoie les ressources (sessions expirées, etc.)
-   */
-  public async cleanup(): Promise<{
-    expiredSessions: number
-  }> {
+  public async cleanup(): Promise<{ expiredSessions: number }> {
     const expiredSessions = await this.contextManager.cleanupExpiredSessions()
-
-    console.log(`🧹 Cleanup completed: ${expiredSessions} expired sessions`)
-
-    return {
-      expiredSessions,
-    }
+    console.log(`🧹 Cleanup: ${expiredSessions} expired sessions`)
+    return { expiredSessions }
   }
 }

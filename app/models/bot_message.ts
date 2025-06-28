@@ -27,8 +27,15 @@ export default class BotMessage extends BaseModel {
   declare content: string
 
   @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value),
+    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
+    consume: (value: string | null) => {
+      if (!value || value === 'null') return {}
+      try {
+        return JSON.parse(value)
+      } catch {
+        return {}
+      }
+    },
   })
   declare structuredContent: Record<string, any>
 
@@ -36,8 +43,15 @@ export default class BotMessage extends BaseModel {
   declare language: SupportedLanguage
 
   @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value),
+    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
+    consume: (value: string | null) => {
+      if (!value || value === 'null') return {}
+      try {
+        return JSON.parse(value)
+      } catch {
+        return {}
+      }
+    },
   })
   declare rawData: Record<string, any>
 
@@ -51,8 +65,15 @@ export default class BotMessage extends BaseModel {
   declare stepId: string | null
 
   @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value),
+    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
+    consume: (value: string | null) => {
+      if (!value || value === 'null') return {}
+      try {
+        return JSON.parse(value)
+      } catch {
+        return {}
+      }
+    },
   })
   declare contextSnapshot: Record<string, any>
 
@@ -83,13 +104,6 @@ export default class BotMessage extends BaseModel {
   @belongsTo(() => BotUser)
   declare botUser: BelongsTo<typeof BotUser>
 
-  /**
-   * Méthodes métier
-   */
-
-  /**
-   * Marque le message comme traité avec succès
-   */
   public async markAsProcessed(durationMs: number): Promise<void> {
     this.isProcessed = true
     this.processedAt = DateTime.now()
@@ -98,9 +112,6 @@ export default class BotMessage extends BaseModel {
     await this.save()
   }
 
-  /**
-   * Marque le message comme échoué avec erreur
-   */
   public async markAsError(error: string, durationMs: number): Promise<void> {
     this.isProcessed = false
     this.processedAt = DateTime.now()
@@ -109,37 +120,22 @@ export default class BotMessage extends BaseModel {
     await this.save()
   }
 
-  /**
-   * Vérifie si le message est un message entrant utilisateur
-   */
   public isIncoming(): boolean {
     return this.direction === 'in'
   }
 
-  /**
-   * Vérifie si le message est un message sortant bot
-   */
   public isOutgoing(): boolean {
     return this.direction === 'out'
   }
 
-  /**
-   * Vérifie si le message est une commande système
-   */
   public isCommand(): boolean {
     return this.messageType === 'command'
   }
 
-  /**
-   * Récupère le temps de traitement en millisecondes
-   */
   public getProcessingTime(): number | null {
     return this.processingDurationMs
   }
 
-  /**
-   * Récupère le contexte workflow au moment du message
-   */
   public getWorkflowContext(): {
     workflowId: string | null
     stepId: string | null
@@ -152,23 +148,14 @@ export default class BotMessage extends BaseModel {
     }
   }
 
-  /**
-   * Vérifie si le message contient du contenu structuré
-   */
   public hasStructuredContent(): boolean {
     return Object.keys(this.structuredContent).length > 0
   }
 
-  /**
-   * Récupère les métadonnées du canal d'origine
-   */
   public getChannelMetadata(): Record<string, any> {
     return this.rawData
   }
 
-  /**
-   * Crée un résumé du message pour analytics
-   */
   public getSummary(): {
     id: string
     direction: MessageDirection
@@ -195,98 +182,55 @@ export default class BotMessage extends BaseModel {
     }
   }
 
-  /**
-   * Scopes de requête
-   */
-
-  /**
-   * Messages entrants seulement
-   */
   public static incoming() {
     return this.query().where('direction', 'in')
   }
 
-  /**
-   * Messages sortants seulement
-   */
   public static outgoing() {
     return this.query().where('direction', 'out')
   }
 
-  /**
-   * Messages traités avec succès
-   */
   public static processed() {
     return this.query().where('isProcessed', true)
   }
 
-  /**
-   * Messages en erreur
-   */
   public static failed() {
     return this.query().whereNotNull('processingError')
   }
 
-  /**
-   * Messages système
-   */
   public static system() {
     return this.query().where('isSystemMessage', true)
   }
 
-  /**
-   * Messages utilisateur
-   */
   public static user() {
     return this.query().where('isSystemMessage', false)
   }
 
-  /**
-   * Messages par type
-   */
   public static byType(type: MessageType) {
     return this.query().where('messageType', type)
   }
 
-  /**
-   * Messages par langue
-   */
   public static byLanguage(language: SupportedLanguage) {
     return this.query().where('language', language)
   }
 
-  /**
-   * Messages par workflow
-   */
   public static byWorkflow(workflowId: string) {
     return this.query().where('workflowId', workflowId)
   }
 
-  /**
-   * Messages d'une session spécifique
-   */
   public static bySession(sessionId: string) {
     return this.query().where('sessionId', sessionId).orderBy('createdAt', 'asc')
   }
 
-  /**
-   * Messages récents (dernières N heures)
-   */
   public static recent(hours: number = 24) {
     const since = DateTime.now().minus({ hours }).toSQL()
     return this.query().where('createdAt', '>=', since).orderBy('createdAt', 'desc')
   }
 
-  /**
-   * Messages avec temps de traitement lent
-   */
   public static slowProcessing(thresholdMs: number = 5000) {
     return this.query().where('processingDurationMs', '>', thresholdMs)
   }
 
-  /**
-   * Statistiques de performance
-   */
   public static async getPerformanceStats(hours: number = 24): Promise<{
     totalMessages: number
     averageProcessingTime: number
@@ -297,7 +241,7 @@ export default class BotMessage extends BaseModel {
 
     const stats = await this.query()
       .where('createdAt', '>=', since)
-      .where('direction', 'in') // Seulement messages entrants
+      .where('direction', 'in')
       .select([
         this.query().count('*').as('total'),
         this.query().avg('processingDurationMs').as('avgTime'),
