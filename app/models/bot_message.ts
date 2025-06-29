@@ -1,13 +1,10 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column, belongsTo } from '@adonisjs/lucid/orm'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
-import BotSession from './bot_session.js'
 import BotUser from './bot_user.js'
-import type { MessageDirection, MessageType, SupportedLanguage } from '#bot/types/bot_types'
+import BotSession from './bot_session.js'
 
 export default class BotMessage extends BaseModel {
-  static table = 'bot_messages'
-
   @column({ isPrimary: true })
   declare id: string
 
@@ -18,45 +15,22 @@ export default class BotMessage extends BaseModel {
   declare botUserId: string
 
   @column()
-  declare direction: MessageDirection
+  declare direction: 'in' | 'out'
 
   @column()
-  declare messageType: MessageType
+  declare messageType: string
 
   @column()
   declare content: string
 
-  @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
-    consume: (value: string | null) => {
-      if (!value || value === 'null') return {}
-      try {
-        return JSON.parse(value)
-      } catch {
-        return {}
-      }
-    },
-  })
+  @column()
   declare structuredContent: Record<string, any>
 
   @column()
-  declare language: SupportedLanguage
-
-  @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
-    consume: (value: string | null) => {
-      if (!value || value === 'null') return {}
-      try {
-        return JSON.parse(value)
-      } catch {
-        return {}
-      }
-    },
-  })
-  declare rawData: Record<string, any>
+  declare language: 'fr' | 'en'
 
   @column()
-  declare channelMessageId: string | null
+  declare rawData: Record<string, any>
 
   @column()
   declare workflowId: string | null
@@ -64,62 +38,130 @@ export default class BotMessage extends BaseModel {
   @column()
   declare stepId: string | null
 
-  @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
-    consume: (value: string | null) => {
-      if (!value || value === 'null') return {}
-      try {
-        return JSON.parse(value)
-      } catch {
-        return {}
-      }
-    },
-  })
+  @column()
   declare contextSnapshot: Record<string, any>
 
   @column()
   declare isProcessed: boolean
 
-  @column.dateTime()
-  declare processedAt: DateTime | null
+  @column()
+  declare processingDurationMs: number | null
 
   @column()
   declare processingError: string | null
 
   @column()
-  declare processingDurationMs: number | null
+  declare systemCommand: string | null
 
   @column()
-  declare isSystemMessage: boolean
+  declare commandAllowed: boolean | null
+
+  @column()
+  declare validationType: string | null
+
+  @column()
+  declare validationPassed: boolean | null
+
+  @column()
+  declare validationError: string | null | undefined
+
+  @column()
+  declare metadata: Record<string, any>
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
-  /**
-   * Relations
-   */
+  // Relations
   @belongsTo(() => BotSession)
   declare session: BelongsTo<typeof BotSession>
 
   @belongsTo(() => BotUser)
   declare botUser: BelongsTo<typeof BotUser>
 
+  // Méthodes statiques pour créer des messages
+  public static async createIncoming(params: {
+    session: BotSession
+    content: string
+    messageType?: string
+    rawData?: Record<string, any>
+  }): Promise<BotMessage> {
+    const message = await BotMessage.create({
+      sessionId: params.session.id,
+      botUserId: params.session.botUserId,
+      direction: 'in',
+      messageType: params.messageType || 'text',
+      content: params.content,
+      language: params.session.botUser?.language || 'fr',
+      rawData: params.rawData || {},
+      workflowId: params.session.currentWorkflow,
+      stepId: params.session.currentStep,
+      contextSnapshot: {
+        currentContext: params.session.currentContext,
+        persistentContext: params.session.persistentContext,
+        navigationStackSize: params.session.navigationStack.length,
+      },
+    })
+
+    // Mettre à jour la session
+    await params.session.recordInteraction()
+
+    return message
+  }
+
+  public static async createOutgoing(params: {
+    session: BotSession
+    content: string
+    messageType?: string
+    structuredContent?: Record<string, any>
+  }): Promise<BotMessage> {
+    return await BotMessage.create({
+      sessionId: params.session.id,
+      botUserId: params.session.botUserId,
+      direction: 'out',
+      messageType: params.messageType || 'text',
+      content: params.content,
+      structuredContent: params.structuredContent || {},
+      language: params.session.botUser?.language || 'fr',
+      workflowId: params.session.currentWorkflow,
+      stepId: params.session.currentStep,
+      contextSnapshot: {
+        currentContext: params.session.currentContext,
+        persistentContext: params.session.persistentContext,
+      },
+      isProcessed: true,
+    })
+  }
+
+  // Méthodes d'instance
   public async markAsProcessed(durationMs: number): Promise<void> {
     this.isProcessed = true
-    this.processedAt = DateTime.now()
     this.processingDurationMs = durationMs
-    this.processingError = null
     await this.save()
   }
 
-  public async markAsError(error: string, durationMs: number): Promise<void> {
-    this.isProcessed = false
-    this.processedAt = DateTime.now()
+  public async markAsError(error: string, durationMs?: number): Promise<void> {
+    this.isProcessed = true
     this.processingError = error
-    this.processingDurationMs = durationMs
+    if (durationMs) {
+      this.processingDurationMs = durationMs
+    }
     await this.save()
   }
 
+  public async recordSystemCommand(command: string, allowed: boolean): Promise<void> {
+    this.systemCommand = command
+    this.commandAllowed = allowed
+    await this.save()
+  }
+
+  public async recordValidation(type: string, passed: boolean, error?: string): Promise<void> {
+    this.validationType = type
+    this.validationPassed = passed
+    this.validationError = error
+    await this.save()
+  }
+
+  // Méthodes utilitaires
   public isIncoming(): boolean {
     return this.direction === 'in'
   }
@@ -129,59 +171,27 @@ export default class BotMessage extends BaseModel {
   }
 
   public isCommand(): boolean {
-    return this.messageType === 'command'
+    return this.systemCommand !== null
+  }
+
+  public isInWorkflow(): boolean {
+    return this.workflowId !== null
   }
 
   public getProcessingTime(): number | null {
     return this.processingDurationMs
   }
 
-  public getWorkflowContext(): {
-    workflowId: string | null
-    stepId: string | null
-    context: Record<string, any>
-  } {
-    return {
-      workflowId: this.workflowId,
-      stepId: this.stepId,
-      context: this.contextSnapshot,
+  // Formatage pour affichage
+  public getFormattedContent(): string {
+    if (this.messageType === 'menu' && this.structuredContent.options) {
+      const options = this.structuredContent.options as Array<{ id: string; label: string }>
+      return `${this.content}\n\n${options.map((o) => `${o.id}. ${o.label}`).join('\n')}`
     }
+    return this.content
   }
 
-  public hasStructuredContent(): boolean {
-    return Object.keys(this.structuredContent).length > 0
-  }
-
-  public getChannelMetadata(): Record<string, any> {
-    return this.rawData
-  }
-
-  public getSummary(): {
-    id: string
-    direction: MessageDirection
-    type: MessageType
-    length: number
-    language: SupportedLanguage
-    processed: boolean
-    processingTime: number | null
-    hasError: boolean
-    workflow: string | null
-    timestamp: string
-  } {
-    return {
-      id: this.id,
-      direction: this.direction,
-      type: this.messageType,
-      length: this.content.length,
-      language: this.language,
-      processed: this.isProcessed,
-      processingTime: this.processingDurationMs,
-      hasError: this.processingError !== null,
-      workflow: this.workflowId,
-      timestamp: this.createdAt.toISO()!,
-    }
-  }
-
+  // ✅ Scopes convertis en méthodes statiques
   public static incoming() {
     return this.query().where('direction', 'in')
   }
@@ -194,72 +204,31 @@ export default class BotMessage extends BaseModel {
     return this.query().where('isProcessed', true)
   }
 
-  public static failed() {
+  public static unprocessed() {
+    return this.query().where('isProcessed', false)
+  }
+
+  public static commands() {
+    return this.query().whereNotNull('systemCommand')
+  }
+
+  public static inWorkflow() {
+    return this.query().whereNotNull('workflowId')
+  }
+
+  public static recent() {
+    return this.query().where('createdAt', '>', DateTime.now().minus({ hours: 24 }).toSQL())
+  }
+
+  public static withErrors() {
     return this.query().whereNotNull('processingError')
-  }
-
-  public static system() {
-    return this.query().where('isSystemMessage', true)
-  }
-
-  public static user() {
-    return this.query().where('isSystemMessage', false)
-  }
-
-  public static byType(type: MessageType) {
-    return this.query().where('messageType', type)
-  }
-
-  public static byLanguage(language: SupportedLanguage) {
-    return this.query().where('language', language)
   }
 
   public static byWorkflow(workflowId: string) {
     return this.query().where('workflowId', workflowId)
   }
 
-  public static bySession(sessionId: string) {
-    return this.query().where('sessionId', sessionId).orderBy('createdAt', 'asc')
-  }
-
-  public static recent(hours: number = 24) {
-    const since = DateTime.now().minus({ hours }).toSQL()
-    return this.query().where('createdAt', '>=', since).orderBy('createdAt', 'desc')
-  }
-
-  public static slowProcessing(thresholdMs: number = 5000) {
-    return this.query().where('processingDurationMs', '>', thresholdMs)
-  }
-
-  public static async getPerformanceStats(hours: number = 24): Promise<{
-    totalMessages: number
-    averageProcessingTime: number
-    errorRate: number
-    slowMessages: number
-  }> {
-    const since = DateTime.now().minus({ hours }).toSQL()
-
-    const stats = await this.query()
-      .where('createdAt', '>=', since)
-      .where('direction', 'in')
-      .select([
-        this.query().count('*').as('total'),
-        this.query().avg('processingDurationMs').as('avgTime'),
-        this.query().countDistinct('id').whereNotNull('processingError').as('errors'),
-        this.query().countDistinct('id').where('processingDurationMs', '>', 5000).as('slow'),
-      ])
-      .first()
-
-    const total = Number(stats?.$extras.total || 0)
-    const avgTime = Number(stats?.$extras.avgTime || 0)
-    const errors = Number(stats?.$extras.errors || 0)
-    const slow = Number(stats?.$extras.slow || 0)
-
-    return {
-      totalMessages: total,
-      averageProcessingTime: Math.round(avgTime),
-      errorRate: total > 0 ? Math.round((errors / total) * 100) : 0,
-      slowMessages: slow,
-    }
+  public static byStep(workflowId: string, stepId: string) {
+    return this.query().where('workflowId', workflowId).where('stepId', stepId)
   }
 }

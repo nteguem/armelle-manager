@@ -1,19 +1,36 @@
 {
-  "generic_error": "Sorry, an error occurred. Please try again in a few moments.",
-
-  "cannot_go_back": "Cannot go back at this step.",
-
-  "translation_missing": "Missing translation for key: {key}",
-
   "validation": {
-    "required_field": "This field is required.",
-    "invalid_format": "Invalid format. Please check your input.",
-    "invalid_phone": "Invalid phone number.",
-    "invalid_email": "Invalid email address.",
-    "invalid_amount": "Invalid amount. Use numbers only.",
-    "amount_too_low": "Amount is too low.",
-    "amount_too_high": "Amount is too high.",
-    "text_too_short": "Text too short. Minimum {min} characters.",
-    "text_too_long": "Text too long. Maximum {max} characters."
+    "required": "This field is required",
+    "too_short": "Text is too short (minimum {{min}} characters)",
+    "too_long": "Text is too long (maximum {{max}} characters)",
+    "invalid_format": "Invalid format",
+    "name_required": "Name is required",
+    "name_too_short": "Name must contain at least 2 characters",
+    "name_too_long": "Name cannot exceed 100 characters",
+    "name_invalid_chars": "Name can only contain letters, spaces and hyphens",
+    "niu_invalid": "Invalid NIU (example: P039816725402F)",
+    "phone_invalid": "Invalid phone number",
+    "amount_invalid": "Invalid amount"
+  },
+  "system": {
+    "processing_error": "⚠️ Processing error. Please try again.",
+    "service_unavailable": "Service temporarily unavailable",
+    "timeout": "Timeout exceeded",
+    "network_error": "Connection error"
+  },
+  "commands": {
+    "menu_blocked_onboarding": "❌ Menu not available during registration",
+    "not_allowed_in_onboarding": "This command is not available during registration",
+    "unknown_command": "Unknown command"
+  },
+  "menu": {
+    "invalid_choice": "❌ Invalid choice. Please select a valid option.",
+    "no_options": "No options available"
+  },
+  "workflow": {
+    "not_found": "Workflow not found",
+    "step_not_found": "Step not found",
+    "action_failed": "Action failed",
+    "transition_failed": "Transition failed"
   }
 }

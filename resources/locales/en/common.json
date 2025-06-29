@@ -1,27 +1,18 @@
 {
-  "bot_header": "My Virtual IGS Assistant/ Cameroon Taxes",
-
-  "step_progress": "Step {current}/{total}",
-
-  "main_menu": "Hello {userName}! How can I help you?\n\n1. 📊 Calculate my IGS\n2. 👤 My Profile\n3. ❓ Help",
-
-  "workflow_in_progress": "Current workflow: {workflow}\nStep: {step}\nYou said: \"{input}\"",
-
-  "current_step": "You are currently in workflow {workflow} at step {step}.",
-
-  "development_notice": "⚠️ Under development",
-
-  "navigation_footer": "Type \"*\" to go back",
-
-  "main_menu_footer": "Type the number of your choice",
-
-  "menu_footer": "Select an option",
-
-  "commands_footer": "Type \"help\" to see commands",
-
-  "continue_footer": "Type \"menu\" for main menu",
-
-  "try_again_footer": "Please try again",
-
-  "retry_footer": "Correct and resend your answer"
+  "bot_header": "My Virtual IGS/ Cameroon Tax Assistant",
+  "step_progress": "Step {{current}}/{{total}}",
+  "welcome_message": "👋 Welcome {{name}}!",
+  "navigation": {
+    "select_option": "Select an option",
+    "enter_text": "Please enter your response",
+    "retry": "Correct and resend your response",
+    "continue_onboarding": "Please complete your registration",
+    "cannot_go_back": "Cannot go back",
+    "menu_return": "Type \"menu\" to return or \"armelle\" to chat with the assistant"
+  },
+  "help_message": "I'm Armelle, your tax assistant!\n\nAvailable commands:\n• menu - Return to main menu\n• * - Go back to previous step\n• fr/en - Change language\n• help - Show this help",
+  "main_menu": {
+    "title": "MAIN MENU",
+    "footer": "Select an option or type \"armelle\" to chat freely"
+  }
 }

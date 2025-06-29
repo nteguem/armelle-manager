@@ -1,57 +1,59 @@
 import { BaseSchema } from '@adonisjs/lucid/schema'
 
 export default class extends BaseSchema {
-  protected readonly tableName: string = 'bot_sessions'
+  protected tableName = 'bot_sessions'
 
-  public async up(): Promise<void> {
+  async up() {
     this.schema.createTable(this.tableName, (table) => {
-      table.uuid('id').primary().defaultTo(this.raw('gen_random_uuid()'))
+      // Identifiant unique UUID
+      table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
 
-      // Relations
-      table
-        .uuid('bot_user_id')
-        .notNullable()
-        .references('id')
-        .inTable('bot_users')
-        .onDelete('CASCADE')
+      // Relation avec l'utilisateur
+      table.uuid('bot_user_id').notNullable()
+      table.foreign('bot_user_id').references('bot_users.id').onDelete('CASCADE')
 
-      // Identifiants canal
-      table.string('channel', 20).notNullable() // 'whatsapp', 'telegram', 'discord'
-      table.string('channel_user_id', 100).notNullable() // phone, telegram_id, discord_id
+      // Informations du canal
+      table.string('channel', 20).notNullable() // whatsapp, telegram, web
+      table.string('channel_user_id', 100).notNullable() // ID utilisateur sur le canal
 
-      // État workflow complexe
-      table.string('current_workflow', 50).nullable() // 'onboarding', 'igs_calculator' etc.
-      table.string('current_step', 50).nullable() // 'collect_name', 'calculate'
-      table.json('current_context').defaultTo('{}').notNullable() // données workflow temporaires
-      table.json('persistent_context').defaultTo('{}').notNullable() // données cross-workflow
-      table.json('navigation_stack').defaultTo('[]').notNullable() // pile navigation complète
-      table.json('workflow_history').defaultTo('{}').notNullable() // historique workflows
-      table.json('active_workflows').defaultTo('[]').notNullable() // workflows en parallèle
+      // État du workflow actuel
+      table.string('current_workflow', 50).nullable()
+      table.string('current_step', 50).nullable()
 
-      // Statut session
+      // Contextes
+      table.json('current_context').defaultTo('{}').notNullable() // Contexte temporaire du workflow
+      table.json('persistent_context').defaultTo('{}').notNullable() // Données persistantes
+
+      // Navigation
+      table.json('navigation_stack').defaultTo('[]').notNullable() // Pile pour retour arrière
+      table.json('workflow_history').defaultTo('{}').notNullable() // Historique des workflows
+      table.json('active_workflows').defaultTo('[]').notNullable() // Workflows en cours
+
+      // Statut et compteurs
       table.boolean('is_active').defaultTo(true).notNullable()
-      table.timestamp('last_activity_at').defaultTo(this.now()).notNullable()
-      table.timestamp('last_interaction_at').nullable()
-      table.timestamp('expires_at').nullable()
-
-      // Métadonnées
+      table.timestamp('last_interaction_at', { useTz: true }).nullable()
       table.integer('message_count').defaultTo(0).notNullable()
+      table.integer('workflow_count').defaultTo(0).notNullable()
+
+      // Données de session temporaires
+      table.json('temp_data').defaultTo('{}').notNullable()
 
       // Timestamps
-      table.timestamp('created_at').defaultTo(this.now()).notNullable()
-      table.timestamp('updated_at').defaultTo(this.now()).notNullable()
+      table.timestamp('created_at', { useTz: true }).notNullable()
+      table.timestamp('updated_at', { useTz: true }).notNullable()
 
-      // Contraintes et index
-      table.unique(['channel', 'channel_user_id'])
-      table.index(['bot_user_id'])
-      table.index(['is_active'])
-      table.index(['last_activity_at'])
+      // Index pour les performances
+      table.index(['bot_user_id', 'channel', 'is_active'])
+      table.index(['channel', 'channel_user_id'])
+      table.index(['current_workflow', 'current_step'])
       table.index(['last_interaction_at'])
-      table.index(['current_workflow'])
+
+      // Contrainte unique pour éviter les doublons
+      table.unique(['bot_user_id', 'channel', 'channel_user_id', 'is_active'])
     })
   }
 
-  public async down(): Promise<void> {
+  async down() {
     this.schema.dropTable(this.tableName)
   }
 }

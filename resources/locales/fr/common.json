@@ -1,27 +1,18 @@
 {
   "bot_header": "Mon assistant Virtuel IGS/ Impôts Cameroun",
-
-  "step_progress": "Étape {current}/{total}",
-
-  "main_menu": "Bonjour {userName} ! Que puis-je faire pour vous ?\n\n1. 📊 Calculer mon IGS\n2. 👤 Mon Profil\n3. ❓ Aide",
-
-  "workflow_in_progress": "Workflow en cours : {workflow}\nÉtape : {step}\nVous avez dit : \"{input}\"",
-
-  "current_step": "Vous êtes actuellement dans le workflow {workflow} à l'étape {step}.",
-
-  "development_notice": "⚠️ En cours de développement",
-
-  "navigation_footer": "Tapez \"*\" pour revenir en arrière",
-
-  "main_menu_footer": "Tapez le numéro de votre choix",
-
-  "menu_footer": "Sélectionnez une option",
-
-  "commands_footer": "Tapez \"aide\" pour voir les commandes",
-
-  "continue_footer": "Tapez \"menu\" pour le menu principal",
-
-  "try_again_footer": "Veuillez réessayer",
-
-  "retry_footer": "Corrigez et renvoyez votre réponse"
+  "step_progress": "Étape {{current}}/{{total}}",
+  "welcome_message": "👋 Bienvenue {{name}} !",
+  "navigation": {
+    "select_option": "Sélectionnez une option",
+    "enter_text": "Veuillez entrer votre réponse",
+    "retry": "Corrigez et renvoyez votre réponse",
+    "continue_onboarding": "Veuillez terminer votre inscription",
+    "cannot_go_back": "Impossible de revenir en arrière",
+    "menu_return": "Tapez \"menu\" pour revenir ou \"armelle\" pour parler avec l'assistant"
+  },
+  "help_message": "Je suis Armelle, votre assistante fiscale !\n\nCommandes disponibles :\n• menu - Retour au menu principal\n• * - Retour étape précédente\n• fr/en - Changer de langue\n• aide - Afficher cette aide",
+  "main_menu": {
+    "title": "MENU PRINCIPAL",
+    "footer": "Sélectionnez une option ou tapez \"armelle\" pour parler librement"
+  }
 }

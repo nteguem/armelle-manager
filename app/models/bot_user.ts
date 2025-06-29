@@ -1,14 +1,11 @@
 import { DateTime } from 'luxon'
-import { BaseModel, belongsTo, column, hasMany } from '@adonisjs/lucid/orm'
+import { BaseModel, column, hasMany, belongsTo } from '@adonisjs/lucid/orm'
 import type { HasMany, BelongsTo } from '@adonisjs/lucid/types/relations'
 import BotSession from './bot_session.js'
 import BotMessage from './bot_message.js'
-import type { SupportedLanguage, MessageChannel } from '#bot/types/bot_types'
 import Taxpayer from './tax_payer.js'
 
 export default class BotUser extends BaseModel {
-  static table = 'bot_users'
-
   @column({ isPrimary: true })
   declare id: string
 
@@ -19,7 +16,7 @@ export default class BotUser extends BaseModel {
   declare fullName: string | null
 
   @column()
-  declare language: SupportedLanguage
+  declare language: 'fr' | 'en'
 
   @column()
   declare isActive: boolean
@@ -31,7 +28,10 @@ export default class BotUser extends BaseModel {
   declare taxpayerId: string | null
 
   @column()
-  declare registrationChannel: MessageChannel
+  declare registrationChannel: string
+
+  @column()
+  declare metadata: Record<string, any>
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -39,9 +39,7 @@ export default class BotUser extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  /**
-   * Relations
-   */
+  // Relations
   @hasMany(() => BotSession)
   declare sessions: HasMany<typeof BotSession>
 
@@ -51,27 +49,31 @@ export default class BotUser extends BaseModel {
   @belongsTo(() => Taxpayer)
   declare taxpayer: BelongsTo<typeof Taxpayer>
 
-  public canInteract(): boolean {
-    return this.isActive
+  // Méthodes utilitaires
+  public get displayName(): string {
+    return this.fullName || this.phoneNumber
   }
 
-  public hasCompletedOnboarding(): boolean {
-    return this.isVerified
+  public async getCurrentSession(channel: string): Promise<BotSession | null> {
+    return await BotSession.query()
+      .where('botUserId', this.id)
+      .where('channel', channel)
+      .where('isActive', true)
+      .orderBy('updatedAt', 'desc')
+      .first()
   }
 
-  public async setLanguage(language: SupportedLanguage): Promise<void> {
-    this.language = language
-    await this.save()
-  }
-
-  public async block(): Promise<void> {
-    this.isActive = false
-    await this.save()
-  }
-
-  public async unblock(): Promise<void> {
-    this.isActive = true
-    await this.save()
+  public async createSession(channel: string, channelUserId: string): Promise<BotSession> {
+    return await BotSession.create({
+      botUserId: this.id,
+      channel,
+      channelUserId,
+      currentContext: {},
+      persistentContext: {},
+      navigationStack: [],
+      workflowHistory: {},
+      activeWorkflows: [],
+    })
   }
 
   public async markAsVerified(): Promise<void> {
@@ -79,54 +81,33 @@ export default class BotUser extends BaseModel {
     await this.save()
   }
 
-  public async getStats(): Promise<{
-    totalMessages: number
-    sessionsCount: number
-    daysSinceRegistration: number
-    isNewUser: boolean
-    lastInteraction: DateTime | null
-  }> {
-    const sessionsQuery = await BotSession.query().where('botUserId', this.id).count('* as total')
-    const sessionsCount = Number(sessionsQuery[0].$extras.total)
-
-    // Compter les messages via les sessions
-    const messagesQuery = await BotMessage.query().where('botUserId', this.id).count('* as total')
-    const totalMessages = Number(messagesQuery[0].$extras.total)
-
-    // Dernière interaction via la session la plus récente
-    const lastSession = await BotSession.query()
-      .where('botUserId', this.id)
-      .orderBy('lastInteractionAt', 'desc')
-      .first()
-
-    const daysSinceRegistration = Math.floor(DateTime.now().diff(this.createdAt, 'days').days)
-
-    return {
-      totalMessages,
-      sessionsCount,
-      daysSinceRegistration,
-      isNewUser: daysSinceRegistration < 7,
-      lastInteraction: lastSession?.lastInteractionAt || null,
-    }
+  public async linkTaxpayer(taxpayerId: string): Promise<void> {
+    this.taxpayerId = taxpayerId
+    await this.save()
   }
 
-  public static active() {
-    return this.query().where('isActive', true)
+  public async updateLanguage(language: 'fr' | 'en'): Promise<void> {
+    this.language = language
+    await this.save()
+  }
+
+  public async updateMetadata(key: string, value: any): Promise<void> {
+    this.metadata = {
+      ...this.metadata,
+      [key]: value,
+    }
+    await this.save()
   }
 
   public static verified() {
     return this.query().where('isVerified', true)
   }
 
-  public static byLanguage(language: SupportedLanguage) {
-    return this.query().where('language', language)
+  public static active() {
+    return this.query().where('isActive', true)
   }
 
-  public static byRegistrationChannel(channel: MessageChannel) {
-    return this.query().where('registrationChannel', channel)
-  }
-
-  public static findByPhone(phoneNumber: string) {
-    return this.query().where('phoneNumber', phoneNumber).first()
+  public static withTaxpayer() {
+    return this.query().whereNotNull('taxpayerId')
   }
 }

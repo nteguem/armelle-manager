@@ -1,370 +1,180 @@
-import BotSession from '#models/bot_session'
-import BotUser from '#models/bot_user'
-import I18nManager from '#bot/core/i18n_manager'
-import MessageBuilder from '#bot/core/message_builder'
-import ContextManager from '#bot/core/context_manager'
-import InputValidator from '#bot/workflows/validation/input_validator'
 import type {
-  SupportedLanguage,
-  WorkflowDefinition,
+  BotSessionExtended,
+  IncomingMessage,
   WorkflowStep,
-  WorkflowResult,
-  Transition,
-  ActionContext,
   ActionResult,
+  ValidationResult,
 } from '#bot/types/bot_types'
+import { BaseWorkflow } from './base_workflow.js'
+import SessionManager from '#bot/services/session_manager'
+import logger from '@adonisjs/core/services/logger'
 
 export default class WorkflowEngine {
-  private readonly workflows = new Map<string, WorkflowDefinition>()
-  private readonly actionRegistry = new Map<string, Function>()
-  private readonly i18n: I18nManager
-  private readonly messageBuilder: MessageBuilder
-  private readonly contextManager: ContextManager
+  private workflows = new Map<string, BaseWorkflow>()
+  private sessionManager: SessionManager
 
-  constructor() {
-    this.i18n = I18nManager.getInstance()
-    this.messageBuilder = new MessageBuilder()
-    this.contextManager = new ContextManager()
+  constructor(sessionManager: SessionManager) {
+    this.sessionManager = sessionManager
   }
 
-  public registerWorkflow(workflow: WorkflowDefinition, actions?: Record<string, Function>): void {
+  registerWorkflow(workflow: BaseWorkflow): void {
     this.workflows.set(workflow.id, workflow)
-
-    if (actions) {
-      Object.entries(actions).forEach(([actionName, handler]) => {
-        const fullActionName = `${workflow.id}.${actionName}`
-        this.actionRegistry.set(fullActionName, handler)
-      })
-    }
+    logger.info({ workflowId: workflow.id }, 'Workflow registered')
   }
 
-  public async startWorkflow(
-    sessionId: string,
-    workflowId: string,
-    initialData: Record<string, any> = {}
-  ): Promise<WorkflowResult> {
+  async startWorkflow(workflowId: string, session: BotSessionExtended): Promise<void> {
     const workflow = this.workflows.get(workflowId)
     if (!workflow) {
-      throw new Error(`Workflow not found: ${workflowId}`)
+      logger.error({ workflowId }, 'Workflow not found')
+      throw new Error(`Workflow ${workflowId} not found`)
     }
 
-    const session = await BotSession.findOrFail(sessionId)
-    const botUser = await session.related('botUser').query().firstOrFail()
+    // Sauvegarder l'état pour navigation
+    await this.sessionManager.pushNavigationState(session)
 
-    await this.contextManager.startWorkflow(
-      sessionId,
-      workflowId,
-      workflow.initialStep,
-      initialData
-    )
+    session.currentWorkflow = workflowId
+    session.currentStep = workflow.initialStep
+    await session.save()
 
-    return await this.processStepExecution(
-      session,
-      botUser,
-      workflow,
-      workflow.initialStep,
-      initialData
+    logger.info(
+      { workflowId, stepId: workflow.initialStep, userId: session.botUserId },
+      'Workflow started'
     )
+    await this.executeStep(session, workflow.initialStep)
   }
 
-  public async processInput(sessionId: string, userInput: string): Promise<WorkflowResult> {
-    const session = await BotSession.findOrFail(sessionId)
-    const botUser = await session.related('botUser').query().firstOrFail()
+  async processStep(session: BotSessionExtended, message: IncomingMessage): Promise<void> {
+    const workflow = this.workflows.get(session.currentWorkflow!)
+    if (!workflow) throw new Error(`Workflow ${session.currentWorkflow} not found`)
 
-    if (!session.currentWorkflow || !session.currentStep) {
-      throw new Error('No active workflow in session')
-    }
+    const step = workflow.getStep(session.currentStep!)
 
-    const workflow = this.workflows.get(session.currentWorkflow)
-    if (!workflow) {
-      throw new Error(`Workflow not found: ${session.currentWorkflow}`)
-    }
-
-    const currentStep = workflow.steps[session.currentStep]
-    if (!currentStep) {
-      throw new Error(`Step not found: ${session.currentStep}`)
-    }
-
-    if (this.isLanguageChange(userInput)) {
-      return await this.handleLanguageChange(sessionId, userInput, currentStep, botUser)
-    }
-
-    if (currentStep.type !== 'api') {
-      const validation = InputValidator.validate(userInput, currentStep.validation)
-      if (!validation.isValid) {
-        return await this.renderValidationError(session, botUser, currentStep, validation.error!)
+    // Validation
+    if (step.validation) {
+      const validationResult = await this.validateInput(message.content, step.validation)
+      if (!validationResult.valid) {
+        await this.sendValidationError(session, validationResult.error!)
+        return
       }
-
-      const stepData = { [currentStep.id]: validation.value }
-      await this.contextManager.moveToStep(sessionId, currentStep.id, stepData)
+      // Sauvegarder la valeur validée
+      session.currentContext[step.id] = validationResult.sanitizedValue || message.content
+    } else {
+      session.currentContext[step.id] = message.content
     }
 
-    const nextTransition = this.resolveTransition(currentStep, userInput)
-
-    if (!nextTransition) {
-      return await this.renderValidationError(session, botUser, currentStep, 'invalid_choice')
-    }
-
-    if (nextTransition.action) {
-      const actionResult = await this.executeAction(
-        nextTransition.action,
-        userInput,
-        session.currentContext,
-        sessionId
-      )
-
-      if (actionResult?.nextStep) {
-        const dynamicTransition = currentStep.transitions[actionResult.nextStep]
-        if (dynamicTransition) {
-          return await this.processTransition(sessionId, workflow, dynamicTransition)
-        }
+    // Exécuter l'action si définie
+    let actionResult: ActionResult | null = null
+    if (step.action) {
+      actionResult = await workflow.executeAction(step.action, session, message)
+      if (actionResult.data) {
+        session.currentContext = { ...session.currentContext, ...actionResult.data }
       }
     }
 
-    return await this.processTransition(sessionId, workflow, nextTransition)
-  }
+    // Résoudre la prochaine étape
+    const nextStep = this.resolveNextStep(step, session.currentContext, actionResult)
 
-  private isLanguageChange(input: string): boolean {
-    const cleanInput = input.trim().toUpperCase()
-    return cleanInput === 'EN' || cleanInput === 'FR'
-  }
-
-  private async handleLanguageChange(
-    sessionId: string,
-    input: string,
-    currentStep: WorkflowStep,
-    botUser: BotUser
-  ): Promise<WorkflowResult> {
-    const newLanguage = input.trim().toLowerCase() as SupportedLanguage
-
-    await this.contextManager.changeLanguage(sessionId, newLanguage)
-    await botUser.setLanguage(newLanguage)
-
-    const session = await BotSession.findOrFail(sessionId)
-    const updatedBotUser = await session.related('botUser').query().firstOrFail()
-    const message = this.buildStepMessage(
-      currentStep,
-      updatedBotUser.language,
-      session.currentContext
-    )
-
-    return {
-      success: true,
-      response: message,
-      nextStep: currentStep.id,
+    if (nextStep === 'END') {
+      await this.endWorkflow(session)
+    } else {
+      await this.updateStepAndSubflow(session, nextStep, workflow)
+      await this.executeStep(session, nextStep)
     }
   }
 
-  private async processTransition(
-    sessionId: string,
-    workflow: WorkflowDefinition,
-    transition: Transition
-  ): Promise<WorkflowResult> {
-    if (transition.target === 'END') {
-      await this.contextManager.completeWorkflow(sessionId)
-      const session = await BotSession.findOrFail(sessionId)
-      const botUser = await session.related('botUser').query().firstOrFail()
+  async executeStep(session: BotSessionExtended, stepId: string): Promise<void> {
+    const workflow = this.workflows.get(session.currentWorkflow!)!
+    const step = workflow.getStep(stepId)
 
-      return {
-        success: true,
-        response: this.buildCompletionMessage(
-          workflow.id,
-          botUser.language,
-          session.currentContext
-        ),
-        completed: true,
-      }
-    }
+    session.currentStep = stepId
+    await session.save()
 
-    const session = await BotSession.findOrFail(sessionId)
-    const botUser = await session.related('botUser').query().firstOrFail()
+    // Construire et envoyer le message
+    const message = await workflow.buildStepMessage(step, session)
+    this.emit('send_message', { session, content: message })
 
-    return await this.processStepExecution(
-      session,
-      botUser,
-      workflow,
-      transition.target,
-      session.currentContext
+    logger.debug(
+      {
+        workflowId: session.currentWorkflow,
+        stepId,
+        userId: session.botUserId,
+      },
+      'Step executed'
     )
   }
 
-  private async processStepExecution(
-    session: BotSession,
-    botUser: BotUser,
-    workflow: WorkflowDefinition,
-    stepId: string,
-    context: Record<string, any>
-  ): Promise<WorkflowResult> {
-    const step = workflow.steps[stepId]
-    if (!step) {
-      throw new Error(`Step not found: ${stepId}`)
-    }
-
-    await this.contextManager.moveToStep(session.id, stepId)
-
-    if (step.type === 'api') {
-      return await this.executeAPIStep(session.id, workflow, step)
-    }
-
-    const message = this.buildStepMessage(step, botUser.language, context)
-    return {
-      success: true,
-      response: message,
-      nextStep: stepId,
-    }
-  }
-
-  private async executeAPIStep(
-    sessionId: string,
-    workflow: WorkflowDefinition,
-    step: WorkflowStep
-  ): Promise<WorkflowResult> {
-    const session = await BotSession.findOrFail(sessionId)
-
-    const defaultTransition = step.transitions.default
-    if (!defaultTransition?.action) {
-      throw new Error(`API step ${step.id} must have a default transition with action`)
-    }
-
-    const actionResult = await this.executeAction(
-      defaultTransition.action,
-      '',
-      session.currentContext,
-      sessionId
-    )
-
-    if (actionResult?.nextStep) {
-      const nextTransition = step.transitions[actionResult.nextStep]
-      if (nextTransition) {
-        return await this.processTransition(sessionId, workflow, nextTransition)
-      }
-    }
-
-    return await this.processTransition(sessionId, workflow, defaultTransition)
-  }
-
-  private resolveTransition(step: WorkflowStep, input: string): Transition | null {
-    if (step.type === 'menu') {
-      return step.transitions[input.trim()] || null
-    }
-
-    return step.transitions.valid_input || step.transitions.default || null
-  }
-
-  private async executeAction(
-    action: string,
-    input: string = '',
-    context: Record<string, any> = {},
-    sessionId: string = ''
-  ): Promise<ActionResult | null> {
-    const session = await BotSession.findOrFail(sessionId)
-    const workflowId = session.currentWorkflow
-
-    if (!workflowId) {
-      throw new Error('No active workflow for action execution')
-    }
-
-    const fullActionName = `${workflowId}.${action}`
-    const actionHandler = this.actionRegistry.get(fullActionName)
-
-    if (!actionHandler) {
-      return null
-    }
-
-    const actionContext: ActionContext = {
-      sessionId,
-      context,
-      input,
-      session,
-      botUser: await session.related('botUser').query().firstOrFail(),
-    }
-
-    return await actionHandler(actionContext)
-  }
-
-  private async renderValidationError(
-    session: BotSession,
-    botUser: BotUser,
+  private resolveNextStep(
     step: WorkflowStep,
-    error: string
-  ): Promise<WorkflowResult> {
-    const errorMessage = this.messageBuilder.buildValidationError(error, botUser.language)
-    const originalMessage = this.buildStepMessage(step, botUser.language, session.currentContext)
-    const combinedMessage = this.combineErrorWithOriginal(errorMessage, originalMessage)
+    context: Record<string, any>,
+    actionResult: ActionResult | null
+  ): string {
+    // Transition spécifique de l'action
+    if (actionResult?.transition) {
+      return actionResult.transition
+    }
 
-    return {
-      success: false,
-      response: combinedMessage,
-      error: error,
-      nextStep: step.id,
+    // Transition par défaut
+    return step.transitions.default || 'END'
+  }
+
+  private async updateStepAndSubflow(
+    session: BotSessionExtended,
+    nextStepId: string,
+    workflow: BaseWorkflow
+  ): Promise<void> {
+    const nextStep = workflow.getStep(nextStepId)
+
+    if (nextStep.subflowId) {
+      const subflow = workflow.getSubflow(nextStep.subflowId)
+      const position = subflow.steps.indexOf(nextStepId) + 1
+      await this.sessionManager.updateSubflowPosition(session, nextStep.subflowId, position)
     }
   }
 
-  private combineErrorWithOriginal(errorMessage: string, originalMessage: string): string {
-    const lines = originalMessage.split('\n')
-    const headerIndex = lines.findIndex((line) => line.includes('['))
-    const titleIndex = lines.findIndex(
-      (line) => line.trim() && !line.includes('[') && !line.includes('-----')
+  private async validateInput(input: string, validation: any): Promise<ValidationResult> {
+    // Validation basique pour l'instant
+    if (validation.required && !input.trim()) {
+      return { valid: false, error: 'errors.validation.required' }
+    }
+
+    if (validation.min && input.length < validation.min) {
+      return { valid: false, error: 'errors.validation.too_short' }
+    }
+
+    if (validation.max && input.length > validation.max) {
+      return { valid: false, error: 'errors.validation.too_long' }
+    }
+
+    return { valid: true, sanitizedValue: input.trim() }
+  }
+
+  private async sendValidationError(session: BotSessionExtended, errorKey: string): Promise<void> {
+    // Sera implémenté avec MessageBuilder
+    this.emit('send_error', { session, errorKey })
+  }
+
+  private async endWorkflow(session: BotSessionExtended): Promise<void> {
+    await this.sessionManager.clearWorkflow(session)
+    logger.info(
+      { workflowId: session.currentWorkflow, userId: session.botUserId },
+      'Workflow ended'
     )
-
-    if (headerIndex !== -1 && titleIndex !== -1) {
-      lines.splice(titleIndex + 2, 0, errorMessage, '')
-    }
-
-    return lines.join('\n')
+    this.emit('workflow_ended', { session })
   }
 
-  private buildStepMessage(
-    step: WorkflowStep,
-    language: SupportedLanguage,
-    context: Record<string, any>
-  ): string {
-    let subheader: string | undefined
-    let footer: string | undefined
-
-    if (
-      step.id.includes('collect_name') ||
-      step.id.includes('search_dgi') ||
-      step.id.includes('confirm') ||
-      step.id.includes('select') ||
-      step.id.includes('manual_niu') ||
-      step.id.includes('verify_niu')
-    ) {
-      subheader = 'common.step_progress'
-      context.current = step.id.includes('collect_name')
-        ? 1
-        : step.id.includes('search_dgi') ||
-            step.id.includes('no_results') ||
-            step.id.includes('dgi_error')
-          ? 2
-          : 3
-      context.total = 3
+  async goBack(session: BotSessionExtended): Promise<boolean> {
+    const success = await this.sessionManager.popNavigationState(session)
+    if (success && session.currentStep) {
+      await this.executeStep(session, session.currentStep)
     }
-
-    if (step.type === 'input') {
-      footer = 'common.retry_footer'
-    } else if (step.type === 'menu') {
-      footer = 'common.menu_footer'
-    }
-
-    return this.messageBuilder.build({
-      content: step.messageKey,
-      subheader,
-      footer,
-      language,
-      params: context,
-    })
+    return success
   }
 
-  private buildCompletionMessage(
-    workflowId: string,
-    language: SupportedLanguage,
-    context: Record<string, any>
-  ): string {
-    return this.messageBuilder.build({
-      content: `workflows.${workflowId}.completed`,
-      language,
-      params: context,
-    })
+  getWorkflow(workflowId: string): BaseWorkflow | undefined {
+    return this.workflows.get(workflowId)
+  }
+
+  private emit(event: string, data: any): void {
+    logger.debug({ event }, 'Workflow engine event emitted')
   }
 }

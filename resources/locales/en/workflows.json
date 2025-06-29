@@ -1,27 +1,30 @@
 {
   "onboarding": {
-    "welcome_collect_name": "👋 Hi! I'm Armelle, your Cameroon tax assistant.\n\nI can help you calculate your IGS, file your tax returns, meet deadlines and answer general tax questions!\n\nTo start, enter Name/Company name.\nExample: MBARGA FOUDA / ABC EXPRESS",
-
-    "input_name_footer": "Enter your name or business name",
-
-    "searching_dgi": "🔍 Searching...\n\nVerifying your identity in the DGI database.\nPlease wait...",
-
-    "no_results_found": "❌ No taxpayer found with \"{{ search_query }}\"\n\n1. Try again with another name\n2. Enter your NIU manually\n3. Continue without NIU",
-
-    "confirm_taxpayer": "✅ Taxpayer found!\n\n📋 {{ selected_taxpayer.nom }} {{ selected_taxpayer.prenom }}\n🆔 NIU: {{ selected_taxpayer.niu }}\n🏢 Center: {{ selected_taxpayer.centre }}\n\n1. Yes, that's me\n2. No, try again",
-
-    "select_taxpayer": "📋 {{ search_results.length }} taxpayers found\n\n{{#each search_results}}{{@index_1}}. {{ nom }} {{ prenom }} - {{ niu }}\n{{/each}}\n0. None of these profiles",
-
-    "dgi_service_error": "⚠️ DGI service temporarily unavailable\n\n1. Retry search\n2. Enter your NIU manually\n3. Continue without verification",
-
-    "enter_niu_manual": "Enter your NIU (Unique Identification Number):\n\nExample: P039816725402F",
-
-    "verifying_niu": "🔍 Verifying NIU...\n\nValidating your NIU with the DGI.\nPlease wait...",
-
-    "confirm_manual_taxpayer": "✅ NIU validated!\n\n📋 {{ manual_taxpayer.nom }} {{ manual_taxpayer.prenom }}\n🆔 NIU: {{ manual_taxpayer.niu }}\n🏛️ Activity: {{ manual_taxpayer.activite }}\n📊 Status: {{ manual_taxpayer.etat }}\n\n1. Yes, that's correct\n2. No, continue without NIU",
-
-    "success_complete": "🎉 Welcome {{ final_taxpayer.nom }}!\n\n✅ NIU: {{ final_taxpayer.niu }}\n📍 Center: {{ final_taxpayer.centre }}\n👤 Status: {{ final_taxpayer.status }}",
-
-    "completed": "🎉 Welcome! Your account is set up."
+    "title": "Registration",
+    "subflows": {
+      "registration": "Registration",
+      "no_results": "No results",
+      "confirmation": "Confirmation",
+      "selection": "Selection",
+      "manual_niu": "Manual NIU",
+      "error_recovery": "Error handling"
+    },
+    "welcome_collect_name": "👋 Hi! I'm Armelle, your tax assistant for Cameroon.\n\nI can help you calculate your IGS, file tax returns, track deadlines and answer general tax questions!\n\nTo start, enter your Name/Company name.\nExample: MBARGA FOUDA / ABC EXPRESS",
+    "searching_dgi": "🔍 Search in progress...\n\nVerifying your identity in the DGI database.\nPlease wait...",
+    "no_results": "❌ No taxpayer found with \"{{userName}}\"\n\n1. Try again with another name\n2. Enter your NIU manually\n3. Continue without NIU",
+    "confirm_single": "✅ Taxpayer found!\n\n📋 {{nom}} {{prenom}}\n🆔 NIU: {{niu}}\n🏢 Center: {{centre}}\n\n1. Yes, that's me\n2. No, try again",
+    "select_from_list": "📋 {{count}} taxpayers found\n\n{{taxpayersList}}\n\n0. None of these profiles",
+    "dgi_error": "⚠️ DGI service temporarily unavailable\n\n1. Try search again\n2. Enter your NIU manually\n3. Continue without verification",
+    "manual_niu_entry": "Enter your NIU (Unique Identification Number):\n\nExample: P039816725402F",
+    "verify_niu": "🔍 NIU verification in progress...\n\nValidating your NIU with the DGI.\nPlease wait...",
+    "confirm_manual_taxpayer": "✅ NIU validated!\n\n📋 {{nom}} {{prenom}}\n🆔 NIU: {{niu}}\n🏛️ Activity: {{activite}}\n📊 Status: {{etat}}\n\n1. Yes, that's correct\n2. No, continue without NIU",
+    "complete": "🎉 Welcome {{userName}}!\n\n{{taxpayerInfo}}Your account is successfully configured.",
+    "complete_with_taxpayer": "✅ NIU: {{niu}}\n📍 Center: {{centre}}\n👤 Status: DGI Verified\n\n",
+    "complete_without_taxpayer": "You can link a taxpayer later if desired.\n\n",
+    "footer": {
+      "enter_name": "Please enter your full name",
+      "enter_niu": "Correct and resend your response",
+      "complete": "Type \"menu\" to return or \"armelle\" to chat with the assistant"
+    }
   }
 }

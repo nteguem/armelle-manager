@@ -1,315 +1,232 @@
-/**
- * Types TypeScript stricts pour le système bot
- */
+import BotSession from '#models/bot_session'
 
-/**
- * Canaux de messagerie supportés
- */
-export type MessageChannel = 'whatsapp'
+// ===== MESSAGES & COMMUNICATION =====
 
-/**
- * Langues supportées
- */
+export interface IncomingMessage {
+  channel: string
+  channelUserId: string
+  content: string
+  messageType: 'text' | 'image' | 'audio' | 'document'
+  timestamp: Date
+  rawData: Record<string, any>
+}
+
+export interface OutgoingMessage {
+  to: string
+  content: string
+  messageType?: string
+  structuredContent?: Record<string, any>
+}
+
+export interface MessageOptions {
+  content: string
+  subheader?: string
+  footer?: string
+  language: SupportedLanguage
+  params?: Record<string, any>
+}
+
+// ===== LANGUES =====
+
 export type SupportedLanguage = 'fr' | 'en'
 
-/**
- * Direction des messages
- */
-export type MessageDirection = 'in' | 'out'
+// ===== WORKFLOW SYSTEM =====
 
-/**
- * Types de messages
- */
-export type MessageType = 'text' | 'command' | 'media' | 'location'
+export interface WorkflowStep {
+  id: string
+  type: 'input' | 'menu' | 'display' | 'api'
+  messageKey: string
+  subheaderKey?: string // Clé pour le subheader (optionnel)
+  footerKey?: string // Clé pour le footer (optionnel)
 
-/**
- * Statuts de session
- */
-export type SessionStatus = 'active' | 'expired' | 'suspended'
+  // Validation
+  validation?: ValidationRule
 
-/**
- * Statuts de workflow
- */
-export type WorkflowStatus = 'active' | 'paused' | 'completed' | 'abandoned' | 'error'
+  // Navigation
+  transitions: Record<string, string>
+  allowSystemCommands?: boolean // Défaut: true
 
-/**
- * Structure d'un message entrant
- */
-export interface IncomingMessage {
-  readonly channel: MessageChannel
-  readonly channelUserId: string
-  readonly content: string
-  readonly rawData: Record<string, any>
-  readonly messageType: MessageType
-  readonly timestamp: Date
+  // Workflow context
+  action?: string
+  subflowId?: string
+  progressMode?: 'auto' | 'none' // auto = calcul automatique, none = pas d'affichage
+
+  // Données dynamiques
+  dynamicTransitions?: boolean // Les transitions dépendent du résultat d'action
 }
 
-/**
- * Structure d'un message sortant
- */
-export interface OutgoingMessage {
-  readonly to: string
-  readonly content: string
-  readonly structuredContent?: Record<string, any>
-  readonly language: SupportedLanguage
-  readonly messageType: MessageType
+export interface SubFlow {
+  id: string
+  nameKey: string // Clé i18n pour le nom du sous-flow
+  steps: string[] // IDs des étapes de ce sous-flow
+  totalSteps: number // Nombre total d'étapes
 }
 
-/**
- * Frame de navigation dans la pile
- */
-export interface NavigationFrame {
-  readonly workflowId: string
-  readonly stepId: string
-  readonly timestamp: number
-  readonly context: Record<string, any>
-  readonly canReturn: boolean
+export interface WorkflowDefinition {
+  id: string
+  initialStep: string
+  steps: Record<string, WorkflowStep>
+  subflows: Record<string, SubFlow>
+
+  // Menu principal
+  menuTitleKey: string
+  menuOrder: number
+
+  // Permissions
+  requiresVerification?: boolean
+  requiresTaxpayer?: boolean
 }
 
-/**
- * Historique des workflows
- */
-export interface WorkflowHistory {
-  readonly completed: readonly string[]
-  readonly abandoned: readonly string[]
-  readonly currentPath: readonly string[]
-  readonly totalWorkflows: number
+// ===== VALIDATION =====
+
+export interface ValidationRule {
+  type: 'name' | 'niu' | 'phone' | 'amount' | 'menu_choice' | 'custom'
+  required?: boolean
+  min?: number
+  max?: number
+  pattern?: RegExp
+  allowedValues?: string[] // Pour les choix de menu
+  customValidator?: string // Nom de la fonction de validation custom
 }
 
-/**
- * Workflow actif
- */
-export interface ActiveWorkflow {
-  readonly id: string
-  readonly status: WorkflowStatus
-  readonly currentStep: string
-  readonly priority: number
-  readonly startedAt: Date
-  readonly lastActivityAt: Date
+export interface ValidationResult {
+  valid: boolean
+  error?: string
+  sanitizedValue?: any
 }
 
-/**
- * Contexte de session complet
- */
-export interface SessionContext {
-  readonly current: Record<string, any>
-  readonly persistent: Record<string, any>
-  readonly navigationStack: readonly NavigationFrame[]
-  readonly workflowHistory: WorkflowHistory
-  readonly activeWorkflows: readonly ActiveWorkflow[]
+// ===== ACTIONS & TRANSITIONS =====
+
+export interface ActionResult {
+  success: boolean
+  data?: Record<string, any>
+  transition?: string // Transition spécifique à utiliser
+  error?: string
 }
 
-/**
- * Commande système
- */
+export type WorkflowAction = (session: BotSession, input?: IncomingMessage) => Promise<ActionResult>
+
+export type TransitionResolver = (context: Record<string, any>) => string
+
+// ===== NAVIGATION =====
+
+export interface NavigationState {
+  workflow: string | null
+  step: string | null
+  subflow: string | null
+  subflowPosition: number
+  context: Record<string, any>
+  timestamp: string
+}
+
+export interface ProgressInfo {
+  current: number
+  total: number
+  subflowName?: string // Nom du sous-flow actuel
+}
+
+// ===== COMMANDES SYSTÈME =====
+
 export interface SystemCommand {
-  readonly name: string
-  readonly synonyms: readonly string[]
-  readonly restricted: boolean
-  readonly priority: number
+  id: string
+  aliases: string[]
+  execute: (session: BotSession, input?: string) => Promise<void>
+  blockedInOnboarding?: boolean // true = bloqué pendant onboarding
+  description?: string
 }
 
-/**
- * Résultat de traitement de message
- */
-export interface MessageProcessingResult {
-  readonly success: boolean
-  readonly response?: string
-  readonly error?: string
-  readonly sessionUpdated: boolean
-  readonly processingTimeMs: number
+export interface CommandResult {
+  handled: boolean
+  requiresResponse?: boolean
 }
 
-/**
- * Événement Socket.IO QR
- */
-export interface QRSocketEvent {
-  readonly type: 'update' | 'expired' | 'success' | 'clear'
-  readonly data?: string
-  readonly timestamp: Date
-}
+// ===== ADAPTERS =====
 
-/**
- * Configuration d'adapter de canal
- */
-export interface ChannelAdapterConfig {
-  readonly channel: MessageChannel
-  readonly enabled: boolean
-  readonly settings: Record<string, any>
-}
+export type MessageChannel = 'whatsapp' | 'telegram' | 'web'
 
-/**
- * Interface pour tous les adapters de canaux
- */
 export interface ChannelAdapter {
   readonly channel: MessageChannel
   start(): Promise<void>
   stop(): Promise<void>
   sendMessage(message: OutgoingMessage): Promise<void>
   isConnected(): boolean
+  setCallbacks(callbacks: AdapterCallbacks): void
 }
 
-/**
- * Interface pour le moteur de workflow
- */
-export interface WorkflowEngine {
-  processMessage(message: IncomingMessage): Promise<MessageProcessingResult>
-  startWorkflow(workflowId: string, userId: string): Promise<void>
-  pauseWorkflow(workflowId: string, userId: string): Promise<void>
-  resumeWorkflow(workflowId: string, userId: string): Promise<void>
-  cancelWorkflow(workflowId: string, userId: string): Promise<void>
+export interface AdapterCallbacks {
+  onMessageReceived?: (message: IncomingMessage) => Promise<void>
+  onConnectionStatusChanged?: (connected: boolean) => void
 }
 
-/**
- * Interface pour le gestionnaire de contexte
- */
-export interface ContextManager {
-  getSession(channel: MessageChannel, channelUserId: string): Promise<SessionContext | null>
-  createSession(channel: MessageChannel, channelUserId: string): Promise<SessionContext>
-  updateSession(sessionId: string, updates: Partial<SessionContext>): Promise<void>
-  expireSession(sessionId: string): Promise<void>
-}
+// ===== SERVICES =====
 
-/**
- * Interface pour le constructeur de messages
- */
-export interface MessageBuilder {
-  build(options: MessageBuildOptions): string
-}
-
-/**
- * Options pour construire un message
- */
-export interface MessageBuildOptions {
-  readonly content: string
-  readonly subheader?: string
-  readonly footer?: string
-  readonly language: SupportedLanguage
-  readonly params?: Record<string, any>
-}
-
-/**
- * Événement du système bot
- */
-export interface BotEvent {
-  readonly type: string
-  readonly payload: Record<string, any>
-  readonly timestamp: Date
-  readonly source: string
-}
-
-/**
- * Définition complète d'un workflow
- */
-export interface WorkflowDefinition {
-  readonly id: string
-  readonly version: string
-  readonly initialStep: string
-  readonly steps: Record<string, WorkflowStep>
-  readonly metadata?: Record<string, any>
-}
-
-/**
- * Étape d'un workflow
- */
-export interface WorkflowStep {
-  readonly id: string
-  readonly type: 'input' | 'menu' | 'display' | 'api' | 'validation' | 'branch'
-  readonly messageKey: string
-  readonly validation?: ValidationRule
-  readonly transitions: Record<string, Transition>
-  readonly metadata?: Record<string, any>
-  readonly allowSystemCommands?: boolean
-}
-
-/**
- * Règle de validation pour une étape
- */
-export interface ValidationRule {
-  readonly type: 'text' | 'number' | 'phone' | 'email' | 'name' | 'amount'
-  readonly required?: boolean
-  readonly minLength?: number
-  readonly maxLength?: number
-  readonly min?: number
-  readonly max?: number
-  readonly pattern?: string
-}
-
-/**
- * Transition entre étapes
- */
-export interface Transition {
-  readonly target: string
-  readonly condition?: string
-  readonly action?: string
-  readonly dataMapping?: Record<string, string>
-}
-
-/**
- * Résultat d'exécution de workflow
- */
-export interface WorkflowResult {
-  readonly success: boolean
-  readonly response: string
-  readonly nextStep?: string
-  readonly completed?: boolean
-  readonly error?: string
-}
-
-/**
- * Contexte d'action workflow
- */
-export interface ActionContext {
-  readonly sessionId: string
-  readonly context: Record<string, any>
-  readonly input: string
-  readonly session: any
-  readonly botUser: any
-}
-
-/**
- * Résultat d'action workflow
- */
-export interface ActionResult {
-  readonly success?: boolean
-  readonly nextStep?: string
-  readonly error?: string
-  readonly data?: Record<string, any>
-}
-
-/**
- * Résultat de recherche DGI
- */
 export interface SearchResult {
   niu: string
   nom: string
-  prenom: string
-  lieuNaissance?: string
+  prenom?: string
+  centre?: string
   numeroDocument?: string
   activite?: string
   regime?: string
-  centre: string
 }
 
-/**
- * Résultat de vérification NIU DGI
- */
 export interface VerifyResult {
   niu: string
   nom: string
-  prenom: string
-  numeroDocument: string
-  activite: string
-  regime: string
-  etat: string
+  prenom?: string
+  numeroDocument?: string
+  activite?: string
+  regime?: string
+  etat?: string
 }
 
-/**
- * Réponse générique du scraper DGI
- */
 export interface ScraperResponse<T> {
   success: boolean
   message: string
   data: T | null
-  type?: string
+  type?: 'aucune' | 'unique' | 'multiple' | 'erreur'
+}
+
+// ===== WORKFLOW ENGINE =====
+
+export interface WorkflowEngineConfig {
+  defaultLanguage: SupportedLanguage
+  maxNavigationStackSize: number
+  sessionTimeoutMinutes: number
+}
+
+export interface WorkflowExecutionContext {
+  session: BotSession
+  currentStep: WorkflowStep
+  workflow: any // BaseWorkflow instance
+  input?: IncomingMessage
+}
+
+// ===== UTILITAIRES =====
+
+export interface KeyValuePair {
+  key: string
+  value: any
+}
+
+export interface MenuOption {
+  id: string
+  labelKey: string
+  value?: any
+}
+
+// ===== TYPES POUR LES MODÈLES (extension) =====
+
+export interface BotSessionExtended extends BotSession {
+  currentSubflow?: string | null
+  subflowPosition?: number
+}
+
+// ===== MESSAGES D'ERREUR =====
+
+export interface ErrorContext {
+  workflowId?: string
+  stepId?: string
+  validationType?: string
+  userInput?: string
 }

@@ -1,6 +1,15 @@
 import puppeteer, { Browser, Page } from 'puppeteer'
 import type { SearchResult, VerifyResult, ScraperResponse } from '#bot/types/bot_types'
 
+// Type pour les résultats de recherche
+type SearchResultType = 'aucune' | 'unique' | 'multiple' | 'erreur'
+
+interface EvaluateResult {
+  type: SearchResultType
+  message: string
+  data: SearchResult[]
+}
+
 export default class DGIScraperService {
   private baseUrl: string
   private loginUrl: string
@@ -50,7 +59,7 @@ export default class DGIScraperService {
 
       await this._waitForSearchResponse(page)
 
-      const result = await page.evaluate(() => {
+      const result = await page.evaluate((): EvaluateResult => {
         const lblNom = document.querySelector(
           '#findIdemployeur_dirigeant_lblNOMCONTRIBUABLE'
         ) as HTMLElement
@@ -58,7 +67,7 @@ export default class DGIScraperService {
 
         if (lblText.includes('Aucune correspondance')) {
           return {
-            type: 'aucune',
+            type: 'aucune' as const,
             message: 'Aucune correspondance trouvée',
             data: [] as SearchResult[],
           }
@@ -90,7 +99,7 @@ export default class DGIScraperService {
               .filter((r) => r !== null) as SearchResult[]
 
             return {
-              type: 'multiple',
+              type: 'multiple' as const,
               message: `${results.length} correspondance(s) trouvée(s)`,
               data: results,
             }
@@ -104,7 +113,7 @@ export default class DGIScraperService {
 
         if (niu && niu.length > 5 && !niu.includes(' ')) {
           return {
-            type: 'unique',
+            type: 'unique' as const,
             message: 'Une correspondance trouvée',
             data: [
               {
@@ -118,7 +127,7 @@ export default class DGIScraperService {
         }
 
         return {
-          type: 'erreur',
+          type: 'erreur' as const,
           message: 'Réponse inattendue du serveur',
           data: [] as SearchResult[],
         }

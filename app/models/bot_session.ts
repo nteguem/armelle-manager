@@ -3,17 +3,24 @@ import { BaseModel, column, belongsTo, hasMany } from '@adonisjs/lucid/orm'
 import type { BelongsTo, HasMany } from '@adonisjs/lucid/types/relations'
 import BotUser from './bot_user.js'
 import BotMessage from './bot_message.js'
-import type {
-  MessageChannel,
-  NavigationFrame,
-  WorkflowHistory,
-  ActiveWorkflow,
-  SessionContext,
-} from '#bot/types/bot_types'
+
+interface NavigationState {
+  workflow: string | null
+  step: string | null
+  subflow: string | null
+  subflowPosition: number
+  context: Record<string, any>
+  timestamp: string
+}
+
+interface WorkflowHistoryEntry {
+  startedAt: string
+  completedAt?: string
+  steps: string[]
+  outcome?: string
+}
 
 export default class BotSession extends BaseModel {
-  static table = 'bot_sessions'
-
   @column({ isPrimary: true })
   declare id: string
 
@@ -21,7 +28,7 @@ export default class BotSession extends BaseModel {
   declare botUserId: string
 
   @column()
-  declare channel: MessageChannel
+  declare channel: string
 
   @column()
   declare channelUserId: string
@@ -32,87 +39,35 @@ export default class BotSession extends BaseModel {
   @column()
   declare currentStep: string | null
 
-  @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
-    consume: (value: string | null) => {
-      if (!value || value === 'null') return {}
-      try {
-        return JSON.parse(value)
-      } catch {
-        return {}
-      }
-    },
-  })
+  @column()
   declare currentContext: Record<string, any>
 
-  @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value || {}),
-    consume: (value: string | null) => {
-      if (!value || value === 'null') return {}
-      try {
-        return JSON.parse(value)
-      } catch {
-        return {}
-      }
-    },
-  })
+  @column()
   declare persistentContext: Record<string, any>
 
-  @column({
-    prepare: (value: NavigationFrame[]) => JSON.stringify(value || []),
-    consume: (value: string | null) => {
-      if (!value || value === 'null') return []
-      try {
-        return JSON.parse(value)
-      } catch {
-        return []
-      }
-    },
-  })
-  declare navigationStack: NavigationFrame[]
+  @column()
+  declare navigationStack: NavigationState[]
 
-  @column({
-    prepare: (value: WorkflowHistory) =>
-      JSON.stringify(value || { completed: [], abandoned: [], currentPath: [], totalWorkflows: 0 }),
-    consume: (value: string | null) => {
-      if (!value || value === 'null')
-        return { completed: [], abandoned: [], currentPath: [], totalWorkflows: 0 }
-      try {
-        return JSON.parse(value)
-      } catch {
-        return { completed: [], abandoned: [], currentPath: [], totalWorkflows: 0 }
-      }
-    },
-  })
-  declare workflowHistory: WorkflowHistory
+  @column()
+  declare workflowHistory: Record<string, WorkflowHistoryEntry>
 
-  @column({
-    prepare: (value: ActiveWorkflow[]) => JSON.stringify(value || []),
-    consume: (value: string | null) => {
-      if (!value || value === 'null') return []
-      try {
-        return JSON.parse(value)
-      } catch {
-        return []
-      }
-    },
-  })
-  declare activeWorkflows: ActiveWorkflow[]
+  @column()
+  declare activeWorkflows: string[]
 
   @column()
   declare isActive: boolean
 
   @column.dateTime()
-  declare lastActivityAt: DateTime
-
-  @column.dateTime()
   declare lastInteractionAt: DateTime | null
-
-  @column.dateTime()
-  declare expiresAt: DateTime | null
 
   @column()
   declare messageCount: number
+
+  @column()
+  declare workflowCount: number
+
+  @column()
+  declare tempData: Record<string, any>
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
@@ -120,188 +75,151 @@ export default class BotSession extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  /**
-   * Relations
-   */
+  // Relations
   @belongsTo(() => BotUser)
   declare botUser: BelongsTo<typeof BotUser>
 
   @hasMany(() => BotMessage)
   declare messages: HasMany<typeof BotMessage>
 
-  /**
-   * Méthodes métier
-   */
-  public isExpired(): boolean {
-    if (!this.expiresAt) return false
-    return DateTime.now() > this.expiresAt
-  }
-
-  public async updateActivity(): Promise<void> {
-    this.lastActivityAt = DateTime.now()
-    this.lastInteractionAt = DateTime.now()
-    this.messageCount += 1
-    await this.save()
-  }
-
-  public async startWorkflow(workflowId: string, stepId: string): Promise<void> {
-    if (this.currentWorkflow && this.currentStep) {
-      this.addToNavigationStack({
-        workflowId: this.currentWorkflow,
-        stepId: this.currentStep,
-        timestamp: DateTime.now().toMillis(),
-        context: { ...this.currentContext },
-        canReturn: true,
-      })
-    }
-
-    this.currentWorkflow = workflowId
-    this.currentStep = stepId
-    this.currentContext = {}
-
-    this.addActiveWorkflow({
-      id: workflowId,
-      status: 'active',
-      currentStep: stepId,
-      priority: 1,
-      startedAt: new Date(),
-      lastActivityAt: new Date(),
-    })
-
-    await this.save()
-  }
-
-  public async moveToStep(stepId: string, context?: Record<string, any>): Promise<void> {
-    if (this.currentWorkflow && this.currentStep) {
-      this.addToNavigationStack({
-        workflowId: this.currentWorkflow,
-        stepId: this.currentStep,
-        timestamp: DateTime.now().toMillis(),
-        context: { ...this.currentContext },
-        canReturn: true,
-      })
-    }
-
-    this.currentStep = stepId
-    if (context) {
-      this.currentContext = { ...this.currentContext, ...context }
-    }
-    await this.save()
-  }
-
-  public async goBack(): Promise<boolean> {
-    if (this.navigationStack.length === 0) return false
-
-    const previousFrame = this.navigationStack[this.navigationStack.length - 1]
-    if (!previousFrame.canReturn) return false
-
-    this.navigationStack = this.navigationStack.slice(0, -1)
-
-    this.currentWorkflow = previousFrame.workflowId
-    this.currentStep = previousFrame.stepId
-    this.currentContext = previousFrame.context
-
-    await this.save()
-    return true
-  }
-
-  public async completeWorkflow(): Promise<void> {
-    if (!this.currentWorkflow) return
-
-    this.workflowHistory = {
-      ...this.workflowHistory,
-      completed: [...this.workflowHistory.completed, this.currentWorkflow],
-      currentPath: [...this.workflowHistory.currentPath, this.currentWorkflow],
-      totalWorkflows: this.workflowHistory.totalWorkflows + 1,
-    }
-
-    this.activeWorkflows = this.activeWorkflows.filter((w) => w.id !== this.currentWorkflow)
-
-    this.currentWorkflow = null
-    this.currentStep = null
-    this.currentContext = {}
-    this.navigationStack = []
-
-    await this.save()
-  }
-
-  public async abandonWorkflow(): Promise<void> {
-    if (!this.currentWorkflow) return
-
-    this.workflowHistory = {
-      ...this.workflowHistory,
-      abandoned: [...this.workflowHistory.abandoned, this.currentWorkflow],
-    }
-
-    this.activeWorkflows = this.activeWorkflows.filter((w) => w.id !== this.currentWorkflow)
-
-    this.currentWorkflow = null
-    this.currentStep = null
-    this.currentContext = {}
-    this.navigationStack = []
-
-    await this.save()
-  }
-
-  public async setExpiration(hours: number): Promise<void> {
-    this.expiresAt = DateTime.now().plus({ hours })
-    await this.save()
-  }
-
-  public getFullContext(): SessionContext {
-    return {
-      current: this.currentContext,
-      persistent: this.persistentContext,
-      navigationStack: this.navigationStack,
-      workflowHistory: this.workflowHistory,
-      activeWorkflows: this.activeWorkflows,
+  // Méthodes de gestion du contexte
+  public updateCurrentContext(data: Record<string, any>): void {
+    this.currentContext = {
+      ...this.currentContext,
+      ...data,
     }
   }
 
-  public async setPersistentData(key: string, value: any): Promise<void> {
+  public updatePersistentContext(data: Record<string, any>): void {
     this.persistentContext = {
       ...this.persistentContext,
-      [key]: value,
+      ...data,
     }
+  }
+
+  public clearCurrentContext(): void {
+    this.currentContext = {}
+  }
+
+  // Méthodes de navigation
+  public pushNavigationState(state: Omit<NavigationState, 'timestamp'>): void {
+    this.navigationStack.push({
+      ...state,
+      timestamp: DateTime.now().toISO(),
+    })
+  }
+
+  public popNavigationState(): NavigationState | null {
+    return this.navigationStack.pop() || null
+  }
+
+  public canGoBack(): boolean {
+    return this.navigationStack.length > 0
+  }
+
+  // Méthodes de workflow
+  public async startWorkflow(workflowId: string, initialStep: string): Promise<void> {
+    this.currentWorkflow = workflowId
+    this.currentStep = initialStep
+    this.workflowCount++
+
+    // Ajouter à l'historique
+    this.workflowHistory[workflowId] = {
+      startedAt: DateTime.now().toISO(),
+      steps: [initialStep],
+    }
+
+    // Ajouter aux workflows actifs
+    if (!this.activeWorkflows.includes(workflowId)) {
+      this.activeWorkflows.push(workflowId)
+    }
+
     await this.save()
   }
 
-  private addToNavigationStack(frame: NavigationFrame): void {
-    this.navigationStack = [...this.navigationStack, frame]
+  public async updateWorkflowStep(stepId: string): Promise<void> {
+    this.currentStep = stepId
 
-    const maxStackSize = 50
-    if (this.navigationStack.length > maxStackSize) {
-      this.navigationStack = this.navigationStack.slice(-maxStackSize)
+    if (this.currentWorkflow && this.workflowHistory[this.currentWorkflow]) {
+      this.workflowHistory[this.currentWorkflow].steps.push(stepId)
     }
+
+    await this.save()
   }
 
-  private addActiveWorkflow(workflow: ActiveWorkflow): void {
-    this.activeWorkflows = [...this.activeWorkflows.filter((w) => w.id !== workflow.id), workflow]
+  public async endWorkflow(outcome?: string): Promise<void> {
+    if (this.currentWorkflow) {
+      // Mettre à jour l'historique
+      if (this.workflowHistory[this.currentWorkflow]) {
+        this.workflowHistory[this.currentWorkflow].completedAt = DateTime.now().toISO()
+        this.workflowHistory[this.currentWorkflow].outcome = outcome
+      }
+
+      // Retirer des workflows actifs
+      this.activeWorkflows = this.activeWorkflows.filter((w) => w !== this.currentWorkflow)
+
+      // Nettoyer l'état actuel
+      this.currentWorkflow = null
+      this.currentStep = null
+      this.clearCurrentContext()
+    }
+
+    await this.save()
   }
 
+  // Méthodes utilitaires
+  public async recordInteraction(): Promise<void> {
+    this.lastInteractionAt = DateTime.now()
+    this.messageCount++
+    await this.save()
+  }
+
+  public isInWorkflow(): boolean {
+    return this.currentWorkflow !== null
+  }
+
+  public getWorkflowDuration(): number | null {
+    if (!this.currentWorkflow || !this.workflowHistory[this.currentWorkflow]) {
+      return null
+    }
+
+    const history = this.workflowHistory[this.currentWorkflow]
+    const startedAt = DateTime.fromISO(history.startedAt)
+    return DateTime.now().diff(startedAt, 'minutes').minutes
+  }
+
+  // Données temporaires
+  public setTempData(key: string, value: any): void {
+    this.tempData[key] = value
+  }
+
+  public getTempData(key: string): any {
+    return this.tempData[key]
+  }
+
+  public clearTempData(): void {
+    this.tempData = {}
+  }
+
+  // ✅ Scopes convertis en méthodes statiques
   public static active() {
     return this.query().where('isActive', true)
   }
 
-  public static notExpired() {
-    return this.query().where((query) => {
-      query.whereNull('expiresAt').orWhere('expiresAt', '>', DateTime.now().toSQL())
-    })
+  public static inWorkflow() {
+    return this.query().whereNotNull('currentWorkflow')
   }
 
-  public static byChannel(channel: MessageChannel) {
-    return this.query().where('channel', channel)
+  public static recent() {
+    return this.query().where('lastInteractionAt', '>', DateTime.now().minus({ hours: 24 }).toSQL())
   }
 
-  public static findActiveSession(channel: MessageChannel, channelUserId: string) {
-    return this.query()
+  // ✅ Méthodes utilitaires statiques
+  public static async findActiveSession(channel: string, channelUserId: string) {
+    return await this.query()
       .where('channel', channel)
       .where('channelUserId', channelUserId)
       .where('isActive', true)
       .first()
-  }
-
-  public static expired() {
-    return this.query().whereNotNull('expiresAt').where('expiresAt', '<', DateTime.now().toSQL())
   }
 }
