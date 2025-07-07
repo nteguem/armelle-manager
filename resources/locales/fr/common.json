@@ -2,11 +2,11 @@
   "bot_header": "Mon assistant Virtuel IGS/ Impôts Cameroun",
   "step_progress": "Étape {{current}}/{{total}}",
   "welcome_message": "👋 Bienvenue {{name}} !",
+  "continue_onboarding": "Veuillez terminer votre inscription",
   "navigation": {
     "select_option": "Sélectionnez une option",
     "enter_text": "Veuillez entrer votre réponse",
     "retry": "Corrigez et renvoyez votre réponse",
-    "continue_onboarding": "Veuillez terminer votre inscription",
     "cannot_go_back": "Impossible de revenir en arrière",
     "menu_return": "Tapez \"menu\" pour revenir ou \"armelle\" pour parler avec l'assistant"
   },

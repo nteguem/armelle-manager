@@ -87,4 +87,16 @@ export default await Env.create(new URL('../', import.meta.url), {
   BOT_CACHE_ENABLED: Env.schema.boolean.optional(),
   BOT_CACHE_TTL: Env.schema.number.optional(),
   BOT_CACHE_PREFIX: Env.schema.string.optional(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring  Nellys Coin
+  |----------------------------------------------------------
+  */
+  NELLYS_COIN_API_URL: Env.schema.string.optional(),
+  NELLYS_COIN_PANEL_URL: Env.schema.string.optional(),
+  NELLYS_COIN_TIMEOUT: Env.schema.string.optional(),
+  NELLYS_COIN_DEBUG: Env.schema.string.optional(),
+  NELLYS_COIN_CLIENT_ID: Env.schema.string.optional(),
+  NELLYS_COIN_CLIENT_SECRET: Env.schema.string.optional(),
 })

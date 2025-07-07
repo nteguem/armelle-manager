@@ -2,11 +2,11 @@
   "bot_header": "My Virtual IGS/ Cameroon Tax Assistant",
   "step_progress": "Step {{current}}/{{total}}",
   "welcome_message": "👋 Welcome {{name}}!",
+  "continue_onboarding": "Please complete your registration",
   "navigation": {
     "select_option": "Select an option",
     "enter_text": "Please enter your response",
     "retry": "Correct and resend your response",
-    "continue_onboarding": "Please complete your registration",
     "cannot_go_back": "Cannot go back",
     "menu_return": "Type \"menu\" to return or \"armelle\" to chat with the assistant"
   },

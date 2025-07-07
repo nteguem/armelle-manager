@@ -1,30 +1,24 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
 
-export default class User extends BaseModel {
+export default class MfaSession extends BaseModel {
   @column({ isPrimary: true })
   declare id: number
 
   @column()
-  declare nellysCoinId: string | number
+  declare loginReference: string
 
   @column()
-  declare username: string | null
+  declare mfaReference: string | null
 
   @column()
-  declare email: string | null
+  declare username: string
 
   @column()
-  declare canAccessPanel: boolean
+  declare status: 'pending' | 'verified' | 'expired'
 
   @column()
-  declare token: string | null
-
-  @column()
-  declare refreshToken: string | null
-
-  @column.dateTime()
-  declare tokenExpiresAt: DateTime | null
+  declare attempts: number
 
   @column({
     prepare: (value: any) => JSON.stringify(value),
@@ -37,6 +31,9 @@ export default class User extends BaseModel {
     },
   })
   declare metadata: any
+
+  @column.dateTime()
+  declare expiresAt: DateTime
 
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime

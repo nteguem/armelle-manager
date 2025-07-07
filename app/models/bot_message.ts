@@ -63,7 +63,7 @@ export default class BotMessage extends BaseModel {
   declare validationPassed: boolean | null
 
   @column()
-  declare validationError: string | null | undefined
+  declare validationError: string | null
 
   @column()
   declare metadata: Record<string, any>
@@ -78,7 +78,6 @@ export default class BotMessage extends BaseModel {
   @belongsTo(() => BotUser)
   declare botUser: BelongsTo<typeof BotUser>
 
-  // Méthodes statiques pour créer des messages
   public static async createIncoming(params: {
     session: BotSession
     content: string
@@ -96,10 +95,11 @@ export default class BotMessage extends BaseModel {
       workflowId: params.session.currentWorkflow,
       stepId: params.session.currentStep,
       contextSnapshot: {
-        currentContext: params.session.currentContext,
-        persistentContext: params.session.persistentContext,
-        navigationStackSize: params.session.navigationStack.length,
+        currentContext: params.session.currentContext || {},
       },
+      structuredContent: {},
+      metadata: {},
+      isProcessed: false,
     })
 
     // Mettre à jour la session
@@ -122,12 +122,13 @@ export default class BotMessage extends BaseModel {
       content: params.content,
       structuredContent: params.structuredContent || {},
       language: params.session.botUser?.language || 'fr',
+      rawData: {},
       workflowId: params.session.currentWorkflow,
       stepId: params.session.currentStep,
       contextSnapshot: {
-        currentContext: params.session.currentContext,
-        persistentContext: params.session.persistentContext,
+        currentContext: params.session.currentContext || {},
       },
+      metadata: {},
       isProcessed: true,
     })
   }
@@ -154,7 +155,7 @@ export default class BotMessage extends BaseModel {
     await this.save()
   }
 
-  public async recordValidation(type: string, passed: boolean, error?: string): Promise<void> {
+  public async recordValidation(type: string, passed: boolean, error: string): Promise<void> {
     this.validationType = type
     this.validationPassed = passed
     this.validationError = error
@@ -182,7 +183,6 @@ export default class BotMessage extends BaseModel {
     return this.processingDurationMs
   }
 
-  // Formatage pour affichage
   public getFormattedContent(): string {
     if (this.messageType === 'menu' && this.structuredContent.options) {
       const options = this.structuredContent.options as Array<{ id: string; label: string }>
@@ -191,7 +191,7 @@ export default class BotMessage extends BaseModel {
     return this.content
   }
 
-  // ✅ Scopes convertis en méthodes statiques
+  // Scopes pour requêtes fréquentes
   public static incoming() {
     return this.query().where('direction', 'in')
   }

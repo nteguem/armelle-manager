@@ -21,7 +21,10 @@
   "commands": {
     "menu_blocked_onboarding": "❌ Menu non disponible pendant l'inscription",
     "not_allowed_in_onboarding": "Cette commande n'est pas disponible pendant l'inscription",
-    "unknown_command": "Commande non reconnue"
+    "unknown_command": "Commande non reconnue",
+    "workflow_only": "Cette commande n'est disponible que dans un processus",
+    "blocked_in_workflow": "Commande non autorisée pendant {{workflow}}",
+    "not_allowed_in_context": "Commande non autorisée dans ce contexte"
   },
   "menu": {
     "invalid_choice": "❌ Choix invalide. Veuillez sélectionner une option valide.",

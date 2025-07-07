@@ -35,7 +35,8 @@
     "#helpers/*": "./app/helpers/*.js",
     "#helpers": "./app/helpers/index.js",
     "#bot/*": "./app/bot/*.js",
-    "#bot/*/*": "./app/bot/*/*.js"
+    "#bot/*/*": "./app/bot/*/*.js",
+    "#service/*": "./app/service/*.js"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^7.8.2",
@@ -47,6 +48,7 @@
     "@japa/plugin-adonisjs": "^4.0.0",
     "@japa/runner": "^4.2.0",
     "@swc/core": "1.11.24",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/luxon": "^3.6.2",
     "@types/node": "^22.15.18",
     "@types/qrcode-terminal": "^0.12.2",
@@ -68,6 +70,7 @@
     "@whiskeysockets/baileys": "^6.7.18",
     "crypto": "^1.0.1",
     "fs": "^0.0.1-security",
+    "jsonwebtoken": "^9.0.2",
     "luxon": "^3.6.1",
     "pg": "^8.16.2",
     "puppeteer": "^24.10.2",

@@ -69,10 +69,8 @@ export default class BotUser extends BaseModel {
       channel,
       channelUserId,
       currentContext: {},
-      persistentContext: {},
-      navigationStack: [],
-      workflowHistory: {},
-      activeWorkflows: [],
+      isActive: true,
+      messageCount: 0,
     })
   }
 
@@ -99,6 +97,7 @@ export default class BotUser extends BaseModel {
     await this.save()
   }
 
+  // Scopes pour requêtes fréquentes
   public static verified() {
     return this.query().where('isVerified', true)
   }
@@ -109,5 +108,13 @@ export default class BotUser extends BaseModel {
 
   public static withTaxpayer() {
     return this.query().whereNotNull('taxpayerId')
+  }
+
+  public static byChannel(channel: string) {
+    return this.query().where('registrationChannel', channel)
+  }
+
+  public static byLanguage(language: 'fr' | 'en') {
+    return this.query().where('language', language)
   }
 }

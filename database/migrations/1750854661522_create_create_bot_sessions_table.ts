@@ -5,38 +5,28 @@ export default class extends BaseSchema {
 
   async up() {
     this.schema.createTable(this.tableName, (table) => {
-      // Identifiant unique UUID
+      // Identifiant unique
       table.uuid('id').primary().defaultTo(this.db.rawQuery('gen_random_uuid()').knexQuery)
 
-      // Relation avec l'utilisateur
+      // Relations
       table.uuid('bot_user_id').notNullable()
       table.foreign('bot_user_id').references('bot_users.id').onDelete('CASCADE')
 
-      // Informations du canal
-      table.string('channel', 20).notNullable() // whatsapp, telegram, web
-      table.string('channel_user_id', 100).notNullable() // ID utilisateur sur le canal
+      // Canal de communication
+      table.string('channel', 20).notNullable()
+      table.string('channel_user_id', 100).notNullable()
 
-      // État du workflow actuel
+      // Workflow actuel
       table.string('current_workflow', 50).nullable()
       table.string('current_step', 50).nullable()
 
-      // Contextes
-      table.json('current_context').defaultTo('{}').notNullable() // Contexte temporaire du workflow
-      table.json('persistent_context').defaultTo('{}').notNullable() // Données persistantes
+      // Contexte minimal
+      table.json('current_context').defaultTo('{}').notNullable()
 
-      // Navigation
-      table.json('navigation_stack').defaultTo('[]').notNullable() // Pile pour retour arrière
-      table.json('workflow_history').defaultTo('{}').notNullable() // Historique des workflows
-      table.json('active_workflows').defaultTo('[]').notNullable() // Workflows en cours
-
-      // Statut et compteurs
+      // Statut et métadonnées
       table.boolean('is_active').defaultTo(true).notNullable()
       table.timestamp('last_interaction_at', { useTz: true }).nullable()
       table.integer('message_count').defaultTo(0).notNullable()
-      table.integer('workflow_count').defaultTo(0).notNullable()
-
-      // Données de session temporaires
-      table.json('temp_data').defaultTo('{}').notNullable()
 
       // Timestamps
       table.timestamp('created_at', { useTz: true }).notNullable()

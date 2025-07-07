@@ -156,7 +156,7 @@ export default class I18nManager {
     }
 
     // Remplace les paramètres {param}
-    return finalText.replace(/\{(\w+)\}/g, (match, param) => {
+    return finalText.replace(/\{\{(\w+)\}\}/g, (match, param) => {
       if (params.hasOwnProperty(param)) {
         return String(params[param])
       }

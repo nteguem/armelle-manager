@@ -10,6 +10,7 @@
 
 import router from '@adonisjs/core/services/router'
 import server from '@adonisjs/core/services/server'
+import GlobalErrorHandlerMiddleware from '#middleware/global_error_handler_middleware'
 
 /**
  * The error handler is used to convert an exception
@@ -35,6 +36,7 @@ server.use([
 router.use([
   () => import('@adonisjs/core/bodyparser_middleware'),
   () => import('@adonisjs/auth/initialize_auth_middleware'),
+  () => import('#middleware/global_error_handler_middleware'),
 ])
 
 /**
@@ -43,4 +45,6 @@ router.use([
  */
 export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
+  nellysAuth: () => import('#middleware/nellys_auth_middleware'),
+  panelAccess: () => import('#middleware/panel_access_middleware'),
 })
