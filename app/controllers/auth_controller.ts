@@ -67,6 +67,8 @@ export default class AuthController extends BaseController {
           email: user.email,
           username: user.username,
           can_access_panel: user.canAccessPanel,
+          shouldCompleteMfa: result.data.shouldCompleteMfa,
+          mfa_data: result.data.mfaData || null,
         }
       )
     } catch (error: any) {
