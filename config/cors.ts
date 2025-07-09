@@ -11,18 +11,9 @@ const corsConfig = defineConfig({
 
   /**
    * List of origins allowed to make requests.
-   * You can use patterns and functions for dynamic matching.
+   * Using '*' to allow all origins
    */
-  origin: (requestOrigin, ctx) => {
-    // Liste des origines autorisées
-    const allowedOrigins = [
-      'http://localhost:3000', // Next.js dev
-      'http://localhost:3001',
-    ]
-
-    // Vérifier si l'origine est dans la liste autorisée
-    return allowedOrigins.includes(requestOrigin)
-  },
+  origin: '*',
 
   /**
    * List of methods allowed for CORS requests.
@@ -49,8 +40,9 @@ const corsConfig = defineConfig({
 
   /**
    * Whether or not to send cookies and authorization headers.
+   * NOTE: Avec origin: '*', credentials doit être false
    */
-  credentials: true,
+  credentials: false,
 
   /**
    * Number of seconds to cache preflight requests.

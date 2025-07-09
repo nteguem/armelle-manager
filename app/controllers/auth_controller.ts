@@ -42,12 +42,12 @@ export default class AuthController extends BaseController {
       if (result.data.shouldCompleteMfa) {
         // Create MFA session
         await this.authService.createMfaSession(result, data.log)
-
         return this.success(
           ctx,
           {
             mfa_required: true,
             login_reference: result.data.loginReference,
+            shouldCompleteMfa: result.data.shouldCompleteMfa,
             mfa_data: result.data.mfaData,
           },
           'MFA verification required'
