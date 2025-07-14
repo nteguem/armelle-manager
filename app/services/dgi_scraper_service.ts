@@ -57,7 +57,7 @@ export default class DGIScraperService {
         // Filtrage local ultra-rapide avec pré-calcul
         const resultatsFiltrés = resultPremierNom.data.filter((result) => {
           // Concaténer et convertir en une seule opération
-          const nomComplet = (result.nom + ' ' + result.prenom).toLowerCase()
+          const nomComplet = (result.nomRaisonSociale + ' ' + result.prenomSigle).toLowerCase()
           return nomComplet.includes(deuxiemeNom)
         })
 
@@ -153,7 +153,7 @@ export default class DGIScraperService {
                     niu: niuLink
                       ? niuLink.textContent?.trim() || ''
                       : cells[1].textContent?.trim() || '',
-                    nom: cells[2].textContent?.trim() || '',
+                    nomRaisonSociale: cells[2].textContent?.trim() || '',
                     prenom: cells[3].textContent?.trim() || '',
                     centre: cells[4].textContent?.trim() || '',
                   }
@@ -184,9 +184,9 @@ export default class DGIScraperService {
             data: [
               {
                 niu: niu,
-                nom: lblText,
-                prenom: '',
-                centre: '',
+                nomRaisonSociale: lblText,
+                prenomSigle: '',
+                centreImpots: '',
               },
             ] as SearchResult[],
           }
@@ -325,7 +325,7 @@ export default class DGIScraperService {
 
             return {
               niu: getText(cells[1] as HTMLElement),
-              nom: getText(cells[2] as HTMLElement),
+              nomRaisonSociale: getText(cells[2] as HTMLElement),
               prenom: getText(cells[3] as HTMLElement),
               lieuNaissance: getText(cells[4] as HTMLElement),
               numeroDocument: getText(cells[5] as HTMLElement),

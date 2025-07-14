@@ -13,7 +13,7 @@ const corsConfig = defineConfig({
    * List of origins allowed to make requests.
    * Using '*' to allow all origins
    */
-  origin: '*',
+  origin: ['http://localhost:3000', 'https://srv701876.hstgr.cloud'],
 
   /**
    * List of methods allowed for CORS requests.
@@ -42,7 +42,7 @@ const corsConfig = defineConfig({
    * Whether or not to send cookies and authorization headers.
    * NOTE: Avec origin: '*', credentials doit être false
    */
-  credentials: false,
+  credentials: true,
 
   /**
    * Number of seconds to cache preflight requests.

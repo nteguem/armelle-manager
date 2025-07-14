@@ -21,6 +21,9 @@ export default class Taxpayer extends BaseModel {
   declare prenomSigle: string | null
 
   @column()
+  declare regime: string | null
+
+  @column()
   declare numeroCniRc: string | null
 
   @column()
@@ -96,7 +99,7 @@ export default class Taxpayer extends BaseModel {
   }
 
   /**
-   * Récupère le nom complet formaté
+   * Récupère le nomRaisonSociale complet formaté
    */
   public getNomComplet(): string {
     if (this.isPersonnePhysique() && this.prenomSigle) {
@@ -106,7 +109,7 @@ export default class Taxpayer extends BaseModel {
   }
 
   /**
-   * Récupère le nom d'affichage selon le type
+   * Récupère le nomRaisonSociale d'affichage selon le type
    */
   public getNomAffichage(): string {
     if (this.isPersonneMorale()) {
@@ -130,9 +133,9 @@ export default class Taxpayer extends BaseModel {
    */
   public static async createFromDGI(dgiData: {
     niu: string
-    nom: string
-    prenom?: string
-    numeroDocument?: string
+    nomRaisonSociale: string
+    prenomSigle?: string
+    numeroCniRc?: string
     activite?: string
     regime?: string
     centre?: string
@@ -142,9 +145,9 @@ export default class Taxpayer extends BaseModel {
 
     return await this.create({
       niu: dgiData.niu,
-      nomRaisonSociale: dgiData.nom,
-      prenomSigle: dgiData.prenom || null,
-      numeroCniRc: dgiData.numeroDocument || null,
+      nomRaisonSociale: dgiData.nomRaisonSociale,
+      prenomSigle: dgiData.prenomSigle || null,
+      numeroCniRc: dgiData.numeroCniRc || null,
       activite: dgiData.activite || null,
       regimeFiscal: dgiData.regime || null,
       centreImpots: dgiData.centre || null,
@@ -160,17 +163,17 @@ export default class Taxpayer extends BaseModel {
    * Met à jour avec de nouvelles données DGI
    */
   public async updateFromDGI(dgiData: {
-    nom: string
-    prenom?: string
-    numeroDocument?: string
+    nomRaisonSociale: string
+    prenomSigle?: string
+    numeroCniRc?: string
     activite?: string
     regime?: string
     centre?: string
     etat?: string
   }): Promise<void> {
-    this.nomRaisonSociale = dgiData.nom
-    this.prenomSigle = dgiData.prenom || null
-    this.numeroCniRc = dgiData.numeroDocument || null
+    this.nomRaisonSociale = dgiData.nomRaisonSociale
+    this.prenomSigle = dgiData.prenomSigle || null
+    this.numeroCniRc = dgiData.numeroCniRc || null
     this.activite = dgiData.activite || null
     this.regimeFiscal = dgiData.regime || null
     this.centreImpots = dgiData.centre || null
@@ -237,10 +240,10 @@ export default class Taxpayer extends BaseModel {
   }
 
   /**
-   * Recherche par nom (insensible à la casse)
+   * Recherche par nomRaisonSociale (insensible à la casse)
    */
-  public static searchByName(nom: string) {
-    return this.query().whereILike('nomRaisonSociale', `%${nom}%`)
+  public static searchByName(nomRaisonSociale: string) {
+    return this.query().whereILike('nomRaisonSociale', `%${nomRaisonSociale}%`)
   }
 
   /**

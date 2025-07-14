@@ -34,9 +34,6 @@ export default class NellysAuthMiddleware {
       // Add user to context
       ctx.user = user
 
-      // Add helper to check panel access
-      ctx.canAccessPanel = () => user.canAccessPanel
-
       await next()
     } catch (error) {
       return response.unauthorized({

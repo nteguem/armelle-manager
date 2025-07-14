@@ -105,12 +105,12 @@ export interface ProgressInfo {
  */
 export interface SearchResult {
   niu: string
-  nom: string
-  prenom?: string
-  centre?: string
+  nomRaisonSociale: string
+  prenomSigle?: string
+  centreImpots?: string
   activite?: string
   regime?: string
-  numeroDocument?: string
+  numeroCniRc?: string
 }
 
 /**

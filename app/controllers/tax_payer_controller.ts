@@ -13,7 +13,7 @@ export default class DgiController extends BaseController {
 
   /**
    * Universal search endpoint for DGI taxpayer data
-   * POST /api/v1/dgi/search
+   * POST /api/v1/admin/tax-payers/search
    *
    * Search types:
    * 1. By name only: { "name": "DUPONT" }
@@ -189,7 +189,7 @@ export default class DgiController extends BaseController {
 
   /**
    * Test connectivity to DGI website
-   * GET /api/v1/dgi/test
+   * GET /api/v1/admin/tax-payers/test
    */
   async testConnectivity(ctx: HttpContext) {
     try {
@@ -216,7 +216,7 @@ export default class DgiController extends BaseController {
 
   /**
    * Clean up browser resources
-   * POST /api/v1/dgi/cleanup
+   * POST /api/v1/admin/tax-payers/cleanup
    */
   async cleanup(ctx: HttpContext) {
     try {

@@ -9,7 +9,7 @@ import {
   refreshTokenValidator,
 } from '#validators/auth_validator'
 import { inject } from '@adonisjs/core'
-
+import User from '#models/user'
 @inject()
 export default class AuthController extends BaseController {
   constructor(
@@ -30,9 +30,12 @@ export default class AuthController extends BaseController {
       // Get location info
       const locationInfo = this.nellysCoinService.getLocationInfo(ctx)
 
+      // Encrypt password before sending
+      const encryptedPassword = data.password
+
       const loginData = {
         ...data,
-        password: data.password,
+        password: encryptedPassword,
         ...locationInfo,
       }
 
@@ -42,12 +45,12 @@ export default class AuthController extends BaseController {
       if (result.data.shouldCompleteMfa) {
         // Create MFA session
         await this.authService.createMfaSession(result, data.log)
+
         return this.success(
           ctx,
           {
             mfa_required: true,
             login_reference: result.data.loginReference,
-            shouldCompleteMfa: result.data.shouldCompleteMfa,
             mfa_data: result.data.mfaData,
           },
           'MFA verification required'
@@ -56,6 +59,18 @@ export default class AuthController extends BaseController {
 
       // Login successful without MFA - save user
       const user = await this.authService.saveUser(result)
+
+      // Load roles and permissions
+      const userWithRelations = await User.query()
+        .where('id', user.id)
+        .preload('roles', (query) => {
+          query.preload('permissions')
+        })
+        .preload('permissions')
+        .first()
+
+      const allPermissions = await userWithRelations!.getAllPermissions()
+      const activeRoles = await userWithRelations!.getActiveRoles()
 
       return this.authSuccess(
         ctx,
@@ -67,8 +82,12 @@ export default class AuthController extends BaseController {
           email: user.email,
           username: user.username,
           can_access_panel: user.canAccessPanel,
-          shouldCompleteMfa: result.data.shouldCompleteMfa,
-          mfa_data: result.data.mfaData || null,
+          roles: activeRoles.map((role) => ({
+            id: role.id,
+            name: role.name,
+            display_name: role.displayName,
+          })),
+          permissions: allPermissions,
         }
       )
     } catch (error: any) {
@@ -105,6 +124,18 @@ export default class AuthController extends BaseController {
         // Save user
         const user = await this.authService.saveUser(result)
 
+        // Load roles and permissions
+        const userWithRelations = await User.query()
+          .where('id', user.id)
+          .preload('roles', (query) => {
+            query.preload('permissions')
+          })
+          .preload('permissions')
+          .first()
+
+        const allPermissions = await userWithRelations!.getAllPermissions()
+        const activeRoles = await userWithRelations!.getActiveRoles()
+
         return this.authSuccess(
           ctx,
           result.token!,
@@ -115,6 +146,12 @@ export default class AuthController extends BaseController {
             email: user.email,
             username: user.username,
             can_access_panel: user.canAccessPanel,
+            roles: activeRoles.map((role) => ({
+              id: role.id,
+              name: role.name,
+              display_name: role.displayName,
+            })),
+            permissions: allPermissions,
           }
         )
       } catch (error: any) {
