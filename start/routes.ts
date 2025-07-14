@@ -143,7 +143,7 @@ router
               .middleware(middleware.permission(['users.view']))
 
             router.post('/:userId/roles', [UserController, 'assignRole'])
-            // TODO: RÉACTIVER EN PRODUCTION
+            // TODO: RÉACTIVER EN PRODUCTION 
             // .middleware(middleware.permission(['users.assign_roles']))
 
             router
