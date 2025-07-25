@@ -1,7 +1,7 @@
-import User from '#models/user'
 import MfaSession from '#models/mfa_session'
+import User from '#models/user'
 import { DateTime } from 'luxon'
-import type { NellysCoinUser, LoginResponse } from '../types/nellys_coin_types.js'
+import type { LoginResponse } from '../types/nellys_coin_types.js'
 
 export default class AuthService {
   /**
@@ -29,6 +29,7 @@ export default class AuthService {
       try {
         const jwt = await import('jsonwebtoken')
         const decoded = jwt.default.decode(token) as any
+        console.log('decoded', decoded)
         if (decoded?.user) {
           userData = decoded.user
           userId = decoded.user.id || decoded.user.userId

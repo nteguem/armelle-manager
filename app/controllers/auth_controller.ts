@@ -1,22 +1,38 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import NellysCoinService from '#services/nellys_coin_service'
-import AuthService from '#services/auth_service'
 import BaseController from '#controllers/base_controller'
+import User from '#models/user'
+import AuthService from '#services/auth_service'
+import MfaMemoryStore from '#services/mfa_memory_store'
+import NellysCoinService from '#services/nellys_coin_service'
 import { ErrorCodes } from '#services/response_formatter'
 import {
   loginValidator,
   mfaConfirmValidator,
+  mfaSetupValidator,
+  mfaVerifyValidator,
   refreshTokenValidator,
 } from '#validators/auth_validator'
 import { inject } from '@adonisjs/core'
-import User from '#models/user'
+import type { HttpContext } from '@adonisjs/core/http'
+import { LoginResponse } from '../types/nellys_coin_types.js'
+
 @inject()
 export default class AuthController extends BaseController {
+  private loginResponse: LoginResponse | null = null
+
   constructor(
     private nellysCoinService: NellysCoinService,
     private authService: AuthService
   ) {
     super()
+  }
+
+  setLoginResponse(loginReference: string, value: LoginResponse) {
+    this.loginResponse = value
+    MfaMemoryStore.set(loginReference, value)
+  }
+
+  getLoginResponse(loginReference: string): LoginResponse | null {
+    return MfaMemoryStore.get(loginReference)
   }
 
   /**
@@ -41,8 +57,22 @@ export default class AuthController extends BaseController {
 
       const result = await this.nellysCoinService.login(loginData)
 
+      // Store MFA session in memory
+      this.setLoginResponse(result.data.loginReference!, result)
+
       // Check if MFA is required
-      if (result.data.shouldCompleteMfa) {
+      if (result.data.shouldCompleteMfa === false) {
+        // Complete MFA setup
+        return this.success(
+          ctx,
+          {
+            mfa_required: true,
+            shouldCompleteMfa: result.data.shouldCompleteMfa,
+            login_token: result.token,
+          },
+          'Please complete your MFA setup to continue.'
+        )
+      } else if (result.data.shouldCompleteMfa) {
         // Create MFA session
         await this.authService.createMfaSession(result, data.log)
 
@@ -50,48 +80,98 @@ export default class AuthController extends BaseController {
           ctx,
           {
             mfa_required: true,
+            shouldCompleteMfa: result.data.shouldCompleteMfa,
             login_reference: result.data.loginReference,
             mfa_data: result.data.mfaData,
           },
-          'MFA verification required'
+          'Finish to setup authenticator'
         )
       }
 
-      // Login successful without MFA - save user
-      const user = await this.authService.saveUser(result)
+      // // Login successful without MFA - save user
+      // const user = await this.authService.saveUser(result)
 
-      // Load roles and permissions
-      const userWithRelations = await User.query()
-        .where('id', user.id)
-        .preload('roles', (query) => {
-          query.preload('permissions')
-        })
-        .preload('permissions')
-        .first()
+      // // Load roles and permissions
+      // const userWithRelations = await User.query()
+      //   .where('id', user.id)
+      //   .preload('roles', (query) => {
+      //     query.preload('permissions')
+      //   })
+      //   .preload('permissions')
+      //   .first()
 
-      const allPermissions = await userWithRelations!.getAllPermissions()
-      const activeRoles = await userWithRelations!.getActiveRoles()
+      // const allPermissions = await userWithRelations!.getAllPermissions()
+      // const activeRoles = await userWithRelations!.getActiveRoles()
 
-      return this.authSuccess(
+      // return this.authSuccess(
+      //   ctx,
+      //   result.token!,
+      //   result.refresh_token || null,
+      //   result.expires_in || 3600,
+      //   {
+      //     id: user.id,
+      //     email: user.email,
+      //     username: user.username,
+      //     can_access_panel: user.canAccessPanel,
+      //     roles: activeRoles.map((role) => ({
+      //       id: role.id,
+      //       name: role.name,
+      //       display_name: role.displayName,
+      //     })),
+      //     permissions: allPermissions,
+      //   }
+      // )
+    } catch (error: any) {
+      return this.handleNellysCoinError(ctx, error)
+    }
+  }
+
+  /**
+   * Handle MFA configuration
+   */
+  async handleMfaConfiguration(ctx: HttpContext) {
+    const { request } = ctx
+    console.log('MFA SETUP VALIDATOR', request.body())
+
+    const data = await request.validateUsing(mfaSetupValidator)
+
+    try {
+      // Complete MFA setup
+      const result = await this.nellysCoinService.setupAuthenticator(data.loginReference)
+
+      console.log('AUTHENTICATOR SETUP RESULT', result)
+
+      return this.success(
         ctx,
-        result.token!,
-        result.refresh_token || null,
-        result.expires_in || 3600,
         {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          can_access_panel: user.canAccessPanel,
-          roles: activeRoles.map((role) => ({
-            id: role.id,
-            name: role.name,
-            display_name: role.displayName,
-          })),
-          permissions: allPermissions,
-        }
+          mfa_required: true,
+          shouldCompleteMfa: result.data.shouldCompleteMfa,
+          login_reference: result.data.loginReference,
+          mfa_data: result.data,
+        },
+        'Finish to setup authenticator'
       )
     } catch (error: any) {
       return this.handleNellysCoinError(ctx, error)
+    }
+  }
+
+  /**
+   * Handle MFA verification
+   */
+  async handleMfaVerification(ctx: HttpContext) {
+    const { request } = ctx
+    const data = await request.validateUsing(mfaVerifyValidator)
+
+    try {
+      const result = await this.nellysCoinService.verifyAuthenticatorCode(
+        data.code,
+        data.loginReference
+      )
+
+      console.log('MFA VERIFY RESULT', result)
+    } catch (error: any) {
+      throw error
     }
   }
 

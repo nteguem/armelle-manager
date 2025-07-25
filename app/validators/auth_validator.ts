@@ -15,6 +15,19 @@ export const loginValidator = vine.compile(
   })
 )
 
+export const mfaSetupValidator = vine.compile(
+  vine.object({
+    loginReference: vine.string().trim(),
+  })
+)
+
+export const mfaVerifyValidator = vine.compile(
+  vine.object({
+    code: vine.string().trim().minLength(6).maxLength(6),
+    loginReference: vine.string().trim(),
+  })
+)
+
 /**
  * MFA confirmation validator
  */

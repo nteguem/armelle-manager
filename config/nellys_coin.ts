@@ -4,7 +4,12 @@ const nellyCoinConfig = {
   /**
    * Base API URL for Nellys Coin
    */
-  apiUrl: env.get('NELLYS_COIN_API_URL', 'https://testbox-nellys-coin.ejaraapis.xyz'),
+  apiUrl: env.get('NELLYS_COIN_API_URL', ''),
+
+  /**
+   * MFA API URL for Nellys Coin
+   */
+  mfaApiUrl: env.get('NELLYS_COIN_MFA_API_URL', ''),
 
   /**
    * Panel URL
@@ -21,6 +26,15 @@ const nellyCoinConfig = {
    */
   clientSecret: env.get('NELLYS_COIN_CLIENT_SECRET', ''),
 
+  /**
+   * Client ID for API mfa authentication
+   */
+  mfaClientId: env.get('NELLYS_COIN_MFA_CLIENT_ID', ''),
+
+  /**
+   * Client Secret (used as api-key header)
+   */
+  mfaClientSecret: env.get('NELLYS_COIN_MFA_CLIENT_SECRET', ''),
   /**
    * API timeout in milliseconds
    */
