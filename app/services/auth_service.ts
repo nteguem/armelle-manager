@@ -8,12 +8,6 @@ export default class AuthService {
    * Save or update user from Nellys Coin response
    */
   async saveUser(loginResponse: any): Promise<User> {
-    console.log(`[AUTH_SERVICE:SAVE_USER] Starting user save process`, {
-      hasToken: !!loginResponse.authToken,
-      hasRefreshToken: !!loginResponse.refreshToken,
-      hasUserData: !!loginResponse.data,
-    })
-
     let token: string | undefined
     let refreshToken: string | undefined
     let userData: any = {}
@@ -32,10 +26,6 @@ export default class AuthService {
       try {
         const jwt = await import('jsonwebtoken')
         const decoded = jwt.default.decode(token) as any
-        console.log(`[AUTH_SERVICE:SAVE_USER] JWT decoded`, {
-          hasUser: !!decoded?.user,
-          decodedKeys: decoded ? Object.keys(decoded) : [],
-        })
         if (decoded?.user) {
           userData = decoded.user
           userId = decoded.user.id || decoded.user.userId
@@ -73,14 +63,6 @@ export default class AuthService {
       }
     )
 
-    console.log(`[AUTH_SERVICE:SAVE_USER] User saved successfully`, {
-      userId: user.id,
-      nellysCoinId: user.nellysCoinId,
-      username: user.username,
-      canAccessPanel: user.canAccessPanel,
-      tokenExpiresAt: user.tokenExpiresAt?.toISO(),
-    })
-
     return user
   }
 
@@ -88,12 +70,6 @@ export default class AuthService {
    * Create MFA session
    */
   async createMfaSession(loginResponse: LoginResponse): Promise<MfaSession> {
-    console.log(`[AUTH_SERVICE:CREATE_MFA_SESSION] Creating MFA session`, {
-      loginReference: loginResponse.data.loginReference,
-      hasMfaData: !!loginResponse.data.mfaData,
-    })
-
-    // Ensure metadata is properly formatted as JSON
     const mfaData = loginResponse.data.mfaData || []
 
     // Extract the first MFA method ID if available
@@ -105,15 +81,8 @@ export default class AuthService {
       mfaReference: mfaId,
       status: 'pending',
       attempts: 0,
-      metadata: JSON.stringify(mfaData), // Explicitly stringify for PostgreSQL
-      expiresAt: DateTime.now().plus({ minutes: 10 }), // 10 minutes expiry
-    })
-
-    console.log(`[AUTH_SERVICE:CREATE_MFA_SESSION] MFA session created`, {
-      sessionId: session.id,
-      loginReference: session.loginReference,
-      mfaReference: session.mfaReference,
-      expiresAt: session.expiresAt.toISO(),
+      metadata: JSON.stringify(mfaData),
+      expiresAt: DateTime.now().plus({ minutes: 10 }),
     })
 
     return session
@@ -123,10 +92,6 @@ export default class AuthService {
    * Verify MFA session
    */
   async verifyMfaSession(loginReference: string): Promise<MfaSession | null> {
-    console.log(`[AUTH_SERVICE:VERIFY_MFA_SESSION] Verifying MFA session`, {
-      loginReference,
-    })
-
     const session = await MfaSession.query()
       .where('loginReference', loginReference)
       .where('status', 'pending')
@@ -134,19 +99,10 @@ export default class AuthService {
       .first()
 
     if (!session) {
-      console.warn(`[AUTH_SERVICE:VERIFY_MFA_SESSION] No valid session found`)
       return null
     }
 
-    console.log(`[AUTH_SERVICE:VERIFY_MFA_SESSION] Session found`, {
-      sessionId: session.id,
-      attempts: session.attempts,
-      status: session.status,
-      expiresAt: session.expiresAt.toISO(),
-    })
-
     if (session.attempts >= 5) {
-      console.warn(`[AUTH_SERVICE:VERIFY_MFA_SESSION] Max attempts reached, expiring session`)
       session.status = 'expired'
       await session.save()
       return null
@@ -159,37 +115,18 @@ export default class AuthService {
    * Increment MFA attempts
    */
   async incrementMfaAttempts(session: MfaSession): Promise<void> {
-    console.log(`[AUTH_SERVICE:INCREMENT_MFA_ATTEMPTS] Incrementing attempts`, {
-      sessionId: session.id,
-      currentAttempts: session.attempts,
-    })
-
     session.attempts++
     await session.save()
-
-    console.log(`[AUTH_SERVICE:INCREMENT_MFA_ATTEMPTS] Attempts incremented`, {
-      sessionId: session.id,
-      newAttempts: session.attempts,
-      maxAttempts: 5,
-    })
   }
 
   /**
    * Complete MFA session
    */
   async completeMfaSession(session: MfaSession, username: string): Promise<void> {
-    console.log(`[AUTH_SERVICE:COMPLETE_MFA_SESSION] Completing MFA session`, {
-      sessionId: session.id,
-      loginReference: session.loginReference,
-      username,
-    })
-
     session.status = 'verified'
     session.username = username
 
     await session.save()
-
-    console.log(`[AUTH_SERVICE:COMPLETE_MFA_SESSION] MFA session completed`)
   }
 
   /**
@@ -206,25 +143,17 @@ export default class AuthService {
    * Invalidate user tokens
    */
   async invalidateTokens(userId: number): Promise<void> {
-    console.log(`[AUTH_SERVICE:INVALIDATE_TOKENS] Invalidating tokens for user`, {
-      userId,
-    })
-
     await User.query().where('id', userId).update({
       token: null,
       refreshToken: null,
       tokenExpiresAt: null,
     })
-
-    console.log(`[AUTH_SERVICE:INVALIDATE_TOKENS] Tokens invalidated successfully`)
   }
 
   /**
    * Clean expired sessions
    */
   async cleanExpiredSessions(): Promise<void> {
-    console.log(`[AUTH_SERVICE:CLEAN_EXPIRED_SESSIONS] Starting cleanup`)
-
     // Clean expired MFA sessions
     const expiredMfaSessions = await MfaSession.query()
       .where('expiresAt', '<', DateTime.now().toSQL())
@@ -240,10 +169,5 @@ export default class AuthService {
         refreshToken: null,
         tokenExpiresAt: null,
       })
-
-    console.log(`[AUTH_SERVICE:CLEAN_EXPIRED_SESSIONS] Cleanup completed`, {
-      expiredMfaSessions,
-      expiredTokens,
-    })
   }
 }

@@ -38,7 +38,6 @@ export default class AuthController extends BaseController {
       }
 
       const result = await this.nellysCoinService.login(loginData)
-      console.log('LOGIN RESULT', result)
       if (result.data.loginReference) {
         await this.authService.createMfaSession(result)
         return result
@@ -65,7 +64,7 @@ export default class AuthController extends BaseController {
 
     try {
       const result = await this.nellysCoinService.setupAuthenticator(authToken)
-      console.log('MFA SETUP RESULT', result)
+
       return result
     } catch (error: any) {
       return this.handleNellysCoinError(ctx, error)
@@ -117,8 +116,6 @@ export default class AuthController extends BaseController {
       try {
         // Get the stored login response to restore token
         const result = await this.nellysCoinService.confirmMfa(data)
-
-        console.log('MFA CONFIRM RESULT', result)
 
         // Complete MFA session
         await this.authService.completeMfaSession(mfaSession, result.data.customerData.username)
