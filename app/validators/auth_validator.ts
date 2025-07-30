@@ -1,11 +1,12 @@
 import vine from '@vinejs/vine'
 
 /**
- * Login validator
+ * Login validator - matching actual API structure
  */
 export const loginValidator = vine.compile(
   vine.object({
-    log: vine.string().trim().minLength(3),
+    loginOption: vine.string().trim().in(['username', 'email']),
+    usernameOrPhoneNumber: vine.string().trim().minLength(3), // email or username
     password: vine.string().minLength(6),
     longitude: vine.string().optional(),
     latitude: vine.string().optional(),
@@ -15,16 +16,9 @@ export const loginValidator = vine.compile(
   })
 )
 
-export const mfaSetupValidator = vine.compile(
-  vine.object({
-    loginReference: vine.string().trim(),
-  })
-)
-
 export const mfaVerifyValidator = vine.compile(
   vine.object({
     code: vine.string().trim().minLength(6).maxLength(6),
-    loginReference: vine.string().trim(),
   })
 )
 
@@ -33,8 +27,7 @@ export const mfaVerifyValidator = vine.compile(
  */
 export const mfaConfirmValidator = vine.compile(
   vine.object({
-    code: vine.string().trim().minLength(6).maxLength(6),
-    mfaReference: vine.string().optional(),
+    otpCode: vine.string().trim().minLength(6).maxLength(6),
     loginReference: vine.string().trim(),
   })
 )

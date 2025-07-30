@@ -4,7 +4,7 @@ const nellyCoinConfig = {
   /**
    * Base API URL for Nellys Coin
    */
-  apiUrl: env.get('NELLYS_COIN_API_URL', ''),
+  apiUrl: env.get('NELLYS_COIN_V2_API_URL', ''),
 
   /**
    * MFA API URL for Nellys Coin

@@ -1,5 +1,5 @@
-import { DateTime } from 'luxon'
 import { BaseModel, column } from '@adonisjs/lucid/orm'
+import { DateTime } from 'luxon'
 
 export default class MfaSession extends BaseModel {
   @column({ isPrimary: true })
@@ -12,7 +12,7 @@ export default class MfaSession extends BaseModel {
   declare mfaReference: string | null
 
   @column()
-  declare username: string
+  declare username: string | null
 
   @column()
   declare status: 'pending' | 'verified' | 'expired'

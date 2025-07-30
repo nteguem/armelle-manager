@@ -4,6 +4,7 @@ import type {
   LoginRequest,
   LoginResponse,
   MfaConfirmRequest,
+  MfaSetupResponse,
   PasswordResetCompleteRequest,
   PasswordResetInitiateRequest,
   PasswordResetVerifyRequest,
@@ -20,6 +21,8 @@ export default class NellysCoinService {
   private mfaClientId: string
   private mfaClientSecret: string
   // Token management
+  private authToken: string | null = null
+  private refreshToken: string | null = null
 
   constructor() {
     this.baseUrl = nellyCoinConfig.apiUrl
@@ -30,6 +33,38 @@ export default class NellysCoinService {
     this.authClientSecret = nellyCoinConfig.clientSecret
     this.mfaClientId = nellyCoinConfig.mfaClientId
     this.mfaClientSecret = nellyCoinConfig.mfaClientSecret
+  }
+
+  /**
+   * Set authentication tokens
+   */
+  private setTokens(authToken: string, refreshToken?: string): void {
+    this.authToken = authToken
+    if (refreshToken) {
+      this.refreshToken = refreshToken
+    }
+  }
+
+  /**
+   * Clear authentication tokens
+   */
+  private clearTokens(): void {
+    this.authToken = null
+    this.refreshToken = null
+  }
+
+  /**
+   * Get current access token
+   */
+  private getAccessToken(): string | null {
+    return this.authToken
+  }
+
+  /**
+   * Set authentication token manually (for session restoration)
+   */
+  public setAuthToken(token: string, refreshToken?: string): void {
+    this.setTokens(token, refreshToken)
   }
 
   /**
@@ -57,9 +92,14 @@ export default class NellysCoinService {
     if (isMfa) {
       headersToAdd['client-key'] = this.mfaClientId
       headersToAdd['client-secret'] = this.mfaClientSecret
+
+      // Add Bearer token automatically for MFA requests if available
+      if (this.authToken) {
+        headersToAdd['Authorization'] = `Bearer ${this.authToken}`
+      }
     } else {
-      headersToAdd['client-id'] = this.authClientId
-      headersToAdd['api-key'] = this.authClientSecret
+      headersToAdd['client-key'] = this.authClientId
+      headersToAdd['client-secret'] = this.authClientSecret
     }
 
     // Merge all headers
@@ -100,49 +140,44 @@ export default class NellysCoinService {
    * Login user and automatically store tokens
    */
   async login(credentials: LoginRequest): Promise<LoginResponse> {
-    return this.request<LoginResponse>('POST', '/api/v2/auth/login', credentials, {}, false)
+    const response = await this.request<LoginResponse>(
+      'POST',
+      '/api/v1/authentication/login',
+      credentials,
+      {},
+      false
+    )
+
+    // Store tokens automatically after successful login
+    if (response.authToken) {
+      this.setTokens(response.authToken)
+    }
+
+    return response
   }
 
   /**
-   * Setup Authenticator app for user
+   * Setup Authenticator app for user - Real MFA API
    */
-  async setupAuthenticator(token: string): Promise<LoginResponse> {
-    const headers: Record<string, string> = {}
-
-    // Use provided token or fall back to stored token
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
-    }
-
-    const result = await this.request<LoginResponse>(
+  async setupAuthenticator(authToken: string): Promise<MfaSetupResponse> {
+    return this.request<MfaSetupResponse>(
       'POST',
       '/api/v1/mfa/setup-authenticator',
       {},
-      headers,
+      { Authorization: `Bearer ${authToken}` },
       true
     )
-
-    console.log('MFA SETUP RESULT', result)
-
-    return result
   }
 
   /**
    * Verify MFA code (MFA confirmation)
    */
-  async verifyAuthenticatorCode(code: string, token: string): Promise<LoginResponse> {
-    const headers: Record<string, string> = {}
-
-    // Use provided token or fall back to stored token
-    if (token) {
-      headers.Authorization = `Bearer ${token}`
-    }
-
+  async verifyAuthenticatorCode(code: string, authToken: string): Promise<LoginResponse> {
     return this.request<LoginResponse>(
       'POST',
       '/api/v1/mfa/validate-authenticator',
       { code },
-      headers,
+      { Authorization: `Bearer ${authToken}` },
       true
     )
   }
@@ -160,14 +195,10 @@ export default class NellysCoinService {
   async confirmMfa(data: MfaConfirmRequest): Promise<LoginResponse> {
     const response = await this.request<LoginResponse>(
       'POST',
-      '/api/v1/auth/confirm-mfa-code',
-      data
+      '/api/v1/authentication/complete-login',
+      data,
+      {}
     )
-
-    // Update tokens after MFA confirmation if provided
-    if (response.token) {
-      this.setTokens(response.token, response.refresh_token)
-    }
 
     return response
   }
