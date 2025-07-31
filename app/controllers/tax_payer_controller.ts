@@ -723,4 +723,200 @@ export default class TaxPayerController extends BaseController {
       }
     }
   }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Gestion des centres (auto-découverts)
+  |--------------------------------------------------------------------------
+  */
+
+  /**
+   * Liste des centres découverts via DGI
+   * GET /api/v1/admin/tax-payers/centres
+   */
+  async getCentres(ctx: HttpContext) {
+    try {
+      const page = ctx.request.input('page', 1)
+      const limit = Math.min(ctx.request.input('limit', 50), 100)
+      const search = ctx.request.input('search', '')
+
+      // Récupérer les centres uniques depuis les taxpayers VERIFIED_FOUND
+      let query = db
+        .from('taxpayers')
+        .select(
+          'centre',
+          db.raw('COUNT(*) as taxpayers_count'),
+          db.raw('MIN(created_at) as first_discovered'),
+          db.raw('MAX(last_dgi_check) as last_seen')
+        )
+        .where('status', TaxpayerStatus.VERIFIED_FOUND)
+        .whereNotNull('centre')
+        .where('centre', '!=', '')
+        .groupBy('centre')
+
+      // Filtre de recherche
+      if (search.trim()) {
+        query = query.whereILike('centre', `%${search.trim()}%`)
+      }
+
+      // Tri par nombre de contribuables (DESC)
+      query = query.orderBy('taxpayers_count', 'desc')
+
+      // Pagination manuelle
+      const offset = (page - 1) * limit
+      const totalQuery = query.clone()
+      const totalRows = await totalQuery
+      const total = totalRows.length
+
+      const centres = await query.offset(offset).limit(limit)
+
+      // Ajouter le centre "Autres" en premier si pas de recherche
+      let finalCentres = [...centres]
+      if (!search.trim() && page === 1) {
+        const autresCount = await db
+          .from('taxpayers')
+          .count('* as total')
+          .where('status', TaxpayerStatus.VERIFIED_FOUND)
+          .where((builder) => {
+            builder.whereNull('centre').orWhere('centre', '').orWhere('centre', 'Autres')
+          })
+
+        finalCentres.unshift({
+          centre: 'Autres',
+          taxpayers_count: Number(autresCount[0].total || 0),
+          first_discovered: null,
+          last_seen: null,
+          is_default: true,
+        })
+      }
+
+      return this.paginated(
+        ctx,
+        finalCentres,
+        {
+          current_page: page,
+          total_pages: Math.ceil((total + 1) / limit), // +1 pour "Autres"
+          per_page: limit,
+          total_items: total + 1,
+        },
+        'Centres retrieved successfully'
+      )
+    } catch (error: any) {
+      console.error('Error fetching centres:', error)
+      return this.error(ctx, 'Failed to fetch centres', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Détails d'un centre avec ses contribuables
+   * GET /api/v1/admin/tax-payers/centres/:nom
+   */
+  async getCentreDetails(ctx: HttpContext) {
+    const { params, request } = ctx
+
+    try {
+      const centreName = decodeURIComponent(params.nom)
+      const page = request.input('page', 1)
+      const limit = Math.min(request.input('limit', 20), 100)
+
+      // Construire la requête selon le centre
+      let query = Taxpayer.query().where('status', TaxpayerStatus.VERIFIED_FOUND)
+
+      if (centreName === 'Autres') {
+        query = query.where((builder) => {
+          builder.whereNull('centre').orWhere('centre', '').orWhere('centre', 'Autres')
+        })
+      } else {
+        query = query.where('centre', centreName)
+      }
+
+      // Pagination
+      const taxpayers = await query.orderBy('nom_raison_sociale', 'asc').paginate(page, limit)
+
+      const paginatedData = taxpayers.toJSON()
+
+      // Statistiques du centre
+      const stats = await this._getCentreStats(centreName)
+
+      return this.paginated(
+        ctx,
+        paginatedData.data,
+        {
+          current_page: paginatedData.meta.currentPage,
+          total_pages: paginatedData.meta.lastPage,
+          per_page: paginatedData.meta.perPage,
+          total_items: paginatedData.meta.total,
+        },
+        `Taxpayers for centre "${centreName}" retrieved successfully`
+      )
+    } catch (error: any) {
+      console.error('Error fetching centre details:', error)
+      return this.error(
+        ctx,
+        'Failed to fetch centre details',
+        ErrorCodes.INTERNAL_SERVER_ERROR,
+        500
+      )
+    }
+  }
+
+  /**
+   * Statistiques d'un centre spécifique
+   */
+  private async _getCentreStats(centreName: string) {
+    try {
+      let query = db.from('taxpayers')
+
+      if (centreName === 'Autres') {
+        query = query.where((builder) => {
+          builder.whereNull('centre').orWhere('centre', '').orWhere('centre', 'Autres')
+        })
+      } else {
+        query = query.where('centre', centreName)
+      }
+
+      const stats = await query
+        .select(
+          db.raw('COUNT(*) as total'),
+          db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as verified_found', [
+            TaxpayerStatus.VERIFIED_FOUND,
+          ]),
+          db.raw('COUNT(CASE WHEN type_contribuable = ? THEN 1 END) as personnes_physiques', [
+            'personne_physique',
+          ]),
+          db.raw('COUNT(CASE WHEN type_contribuable = ? THEN 1 END) as personnes_morales', [
+            'personne_morale',
+          ]),
+          db.raw('COUNT(CASE WHEN LOWER(etat) = ? THEN 1 END) as actifs', ['actif']),
+          db.raw('MIN(created_at) as first_discovered'),
+          db.raw('MAX(last_dgi_check) as last_seen')
+        )
+        .first()
+
+      return {
+        nom: centreName,
+        total: Number(stats?.total || 0),
+        verified_found: Number(stats?.verified_found || 0),
+        personnes_physiques: Number(stats?.personnes_physiques || 0),
+        personnes_morales: Number(stats?.personnes_morales || 0),
+        actifs: Number(stats?.actifs || 0),
+        first_discovered: stats?.first_discovered || null,
+        last_seen: stats?.last_seen || null,
+        is_default: centreName === 'Autres',
+      }
+    } catch (error) {
+      console.error('Error getting centre stats:', error)
+      return {
+        nom: centreName,
+        total: 0,
+        verified_found: 0,
+        personnes_physiques: 0,
+        personnes_morales: 0,
+        actifs: 0,
+        first_discovered: null,
+        last_seen: null,
+        is_default: centreName === 'Autres',
+      }
+    }
+  }
 }

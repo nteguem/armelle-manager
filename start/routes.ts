@@ -190,35 +190,36 @@ router
             // Liste paginée avec filtres et recherche
             router
               .get('/', [TaxPayerController, 'index'])
-              // .middleware(middleware.permission(['taxpayer.list']))
+              .middleware(middleware.permission(['taxpayer.list']))
 
             // Création d'un nouveau taxpayer
             router
               .post('/', [TaxPayerController, 'store'])
-              // .middleware(middleware.permission(['taxpayer.create']))
+              .middleware(middleware.permission(['taxpayer.create']))
 
             // Détails d'un taxpayer spécifique
             router
               .get('/:id', [TaxPayerController, 'show'])
-              // .middleware(middleware.permission(['taxpayer.view']))
+              .middleware(middleware.permission(['taxpayer.view']))
 
             // Mise à jour d'un taxpayer
             router
               .put('/:id', [TaxPayerController, 'update'])
-              // .middleware(middleware.permission(['taxpayer.update']))
+              .middleware(middleware.permission(['taxpayer.update']))
 
             // Suppression d'un taxpayer
             router
               .delete('/:id', [TaxPayerController, 'destroy'])
-              // .middleware(middleware.permission(['taxpayer.delete']))
+              .middleware(middleware.permission(['taxpayer.delete']))
 
             // Synchronisation avec la DGI
             router
               .post('/:id/sync-dgi', [TaxPayerController, 'syncWithDgi'])
-              // .middleware(middleware.permission(['taxpayer.sync']))
+              .middleware(middleware.permission(['taxpayer.sync']))
             // Endpoint universel de recherche taxpayer
-            router.post('/search', [TaxPayerController, 'search'])
-            // .middleware(middleware.permission(['taxpayer.search']))
+            router
+              .post('/search', [TaxPayerController, 'search'])
+              .middleware(middleware.permission(['taxpayer.search']))
             // Test de connectivité DGI
             router
               .get('/test', [TaxPayerController, 'testConnectivity'])
@@ -228,9 +229,19 @@ router
             router
               .post('/cleanup', [TaxPayerController, 'cleanup'])
               .middleware(middleware.permission(['admin.*']))
+
+            // Liste des centres découverts
+            router
+              .get('/centres', [TaxPayerController, 'getCentres'])
+              .middleware(middleware.permission(['taxpayer.list']))
+
+            // Détails d'un centre avec ses contribuables
+            router
+              .get('/centres/:nom', [TaxPayerController, 'getCentreDetails'])
+              .middleware(middleware.permission(['taxpayer.list']))
           })
           .prefix('/admin/tax-payers')
       })
-      // .middleware(middleware.nellysAuth())
+      .middleware(middleware.nellysAuth())
   })
   .prefix('/api/v1')
