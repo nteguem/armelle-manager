@@ -1,15 +1,17 @@
-import type { HttpContext } from '@adonisjs/core/http'
-import NellysCoinService from '#services/nellys_coin_service'
-import AuthService from '#services/auth_service'
 import BaseController from '#controllers/base_controller'
+import User from '#models/user'
+import AuthService from '#services/auth_service'
+import NellysCoinService from '#services/nellys_coin_service'
 import { ErrorCodes } from '#services/response_formatter'
 import {
   loginValidator,
   mfaConfirmValidator,
+  mfaVerifyValidator,
   refreshTokenValidator,
 } from '#validators/auth_validator'
 import { inject } from '@adonisjs/core'
-import User from '#models/user'
+import type { HttpContext } from '@adonisjs/core/http'
+
 @inject()
 export default class AuthController extends BaseController {
   constructor(
@@ -30,66 +32,62 @@ export default class AuthController extends BaseController {
       // Get location info
       const locationInfo = this.nellysCoinService.getLocationInfo(ctx)
 
-      // Encrypt password before sending
-      const encryptedPassword = data.password
-
       const loginData = {
         ...data,
-        password: encryptedPassword,
         ...locationInfo,
       }
 
       const result = await this.nellysCoinService.login(loginData)
-
-      // Check if MFA is required
-      if (result.data.shouldCompleteMfa) {
-        // Create MFA session
-        await this.authService.createMfaSession(result, data.log)
-
-        return this.success(
-          ctx,
-          {
-            mfa_required: true,
-            login_reference: result.data.loginReference,
-            mfa_data: result.data.mfaData,
-          },
-          'MFA verification required'
-        )
+      if (result.data.loginReference) {
+        await this.authService.createMfaSession(result)
+        return result
       }
 
-      // Login successful without MFA - save user
-      const user = await this.authService.saveUser(result)
+      return result
+    } catch (error: any) {
+      return this.handleNellysCoinError(ctx, error)
+    }
+  }
 
-      // Load roles and permissions
-      const userWithRelations = await User.query()
-        .where('id', user.id)
-        .preload('roles', (query) => {
-          query.preload('permissions')
-        })
-        .preload('permissions')
-        .first()
+  /**
+   * Handle MFA configuration - Setup authenticator with code
+   */
+  async handleMfaConfiguration(ctx: HttpContext) {
+    const { request } = ctx
+    const authHeader = request.header('Authorization')
 
-      const allPermissions = await userWithRelations!.getAllPermissions()
-      const activeRoles = await userWithRelations!.getActiveRoles()
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new Error('Unauthorized')
+    }
 
-      return this.authSuccess(
-        ctx,
-        result.token!,
-        result.refresh_token || null,
-        result.expires_in || 3600,
-        {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          can_access_panel: user.canAccessPanel,
-          roles: activeRoles.map((role) => ({
-            id: role.id,
-            name: role.name,
-            display_name: role.displayName,
-          })),
-          permissions: allPermissions,
-        }
-      )
+    const authToken = authHeader.split(' ')[1]
+
+    try {
+      const result = await this.nellysCoinService.setupAuthenticator(authToken)
+
+      return result
+    } catch (error: any) {
+      return this.handleNellysCoinError(ctx, error)
+    }
+  }
+
+  /**
+   * Handle MFA verification - Validate authenticator setup
+   */
+  async handleMfaVerification(ctx: HttpContext) {
+    const { request } = ctx
+    const data = await request.validateUsing(mfaVerifyValidator)
+    const authHeader = request.header('Authorization')
+
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      throw new Error('Unauthorized')
+    }
+
+    const authToken = authHeader.split(' ')[1]
+    try {
+      const result = await this.nellysCoinService.verifyAuthenticatorCode(data.code, authToken)
+
+      return result
     } catch (error: any) {
       return this.handleNellysCoinError(ctx, error)
     }
@@ -116,10 +114,11 @@ export default class AuthController extends BaseController {
       }
 
       try {
+        // Get the stored login response to restore token
         const result = await this.nellysCoinService.confirmMfa(data)
 
         // Complete MFA session
-        await this.authService.completeMfaSession(mfaSession)
+        await this.authService.completeMfaSession(mfaSession, result.data.customerData.username)
 
         // Save user
         const user = await this.authService.saveUser(result)
@@ -138,9 +137,9 @@ export default class AuthController extends BaseController {
 
         return this.authSuccess(
           ctx,
-          result.token!,
-          result.refresh_token || null,
-          result.expires_in || 3600,
+          result.data.authToken,
+          result.data.refreshToken,
+          result.data.expiresIn || 3600,
           {
             id: user.id,
             email: user.email,

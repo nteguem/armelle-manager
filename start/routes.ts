@@ -7,8 +7,8 @@
 |
 */
 
-import router from '@adonisjs/core/services/router'
 import { middleware } from '#start/kernel'
+import router from '@adonisjs/core/services/router'
 const AuthController = () => import('#controllers/auth_controller')
 const PasswordResetController = () => import('#controllers/password_reset_controller')
 const RolesController = () => import('#controllers/roles_controller')
@@ -47,6 +47,8 @@ router
       router.post('/auth/login', [AuthController, 'login'])
 
       // MFA confirmation
+      router.post('/auth/setup-authenticator', [AuthController, 'handleMfaConfiguration'])
+      router.post('/auth/verify-authenticator', [AuthController, 'handleMfaVerification'])
       router.post('/auth/confirm-mfa-code', [AuthController, 'confirmMfaCode'])
 
       // Token refresh

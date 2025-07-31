@@ -4,8 +4,9 @@
 
 // Login Request
 export interface LoginRequest {
-  log: string // email or username
-  password: string // encrypted password
+  loginOption: string
+  usernameOrPhoneNumber: string // username or phone number
+  password: string // password
   longitude?: string
   latitude?: string
   ipAddress?: string
@@ -13,29 +14,33 @@ export interface LoginRequest {
   location?: string
 }
 
-// Login Response
+// Login Response - Contains complete auth data but with MFA flag
 export interface LoginResponse {
   responsecode: string
   message: string
-  token?: string
-  refresh_token?: string
-  expires_in?: string
-  refresh_token_expires_in?: string
-  token_type?: string
+  authToken?: string
+  refreshToken?: string
+  expiresIn?: string
+  refreshTokenExpiresIn?: string
+  tokenType?: string
   data: {
     canAccessPanel: boolean
     shouldCompleteMfa: boolean
     loginReference?: string
-    mfaData?: any // MFA related object
-    [key: string]: any // Other customer data
+    mfaData?: {
+      id: number
+      status: string
+      type: string
+    } // MFA related object
+    [key: string]: any // Other user data
   }
 }
 
-// MFA Confirmation Request
+// MFA Confirmation Request (keeping for backward compatibility)
 export interface MfaConfirmRequest {
-  code: string
-  mfaReference?: string
+  otpCode: string
   loginReference: string
+  mfaReference?: string
 }
 
 // Password Reset Initiate Request
@@ -82,4 +87,37 @@ export interface NellysCoinUser {
   username?: string
   canAccessPanel: boolean
   [key: string]: any
+}
+
+// MFA Status types
+export type MfaStatus = 'pending' | 'verified' | 'active' | 'failed' | 'expired' | 'inactive'
+
+// MFA Setup Request
+export interface MfaSetupRequest {
+  code: string // e.g. "1234"
+}
+
+// MFA Setup Response
+export interface MfaSetupResponse {
+  message: string
+  data: {
+    type: 'authenticator'
+    status: MfaStatus
+    qrCodeUri: string
+    setupKey: string
+  }
+}
+
+// MFA Validate Request
+export interface MfaValidateRequest {
+  // Empty request body
+}
+
+// MFA Validate Response
+export interface MfaValidateResponse {
+  message: string
+  data: {
+    type: 'authenticator'
+    status: MfaStatus
+  }
 }
