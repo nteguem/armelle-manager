@@ -5,6 +5,7 @@ import { ErrorCodes } from '#services/response_formatter'
 import Taxpayer from '#models/tax_payer'
 import { DateTime } from 'luxon'
 import db from '@adonisjs/lucid/services/db'
+import { TaxpayerStatus } from '#types/taxpayer_types'
 
 export default class TaxPayerController extends BaseController {
   private dgiScraperService: DGIScraperService
@@ -36,9 +37,10 @@ export default class TaxPayerController extends BaseController {
         'search',
         'type_contribuable',
         'etat',
-        'centre_impots',
-        'regime_fiscal',
-        'is_verified',
+        'centre',
+        'regime',
+        'status',
+        'phone_number',
       ])
 
       // Tri
@@ -54,6 +56,7 @@ export default class TaxPayerController extends BaseController {
             .whereILike('niu', `%${filters.search}%`)
             .orWhereILike('nomRaisonSociale', `%${filters.search}%`)
             .orWhereILike('prenomSigle', `%${filters.search}%`)
+            .orWhereILike('phoneNumber', `%${filters.search}%`)
         })
       }
 
@@ -65,16 +68,20 @@ export default class TaxPayerController extends BaseController {
         query = query.whereILike('etat', `%${filters.etat}%`)
       }
 
-      if (filters.centre_impots) {
-        query = query.whereILike('centreImpots', `%${filters.centre_impots}%`)
+      if (filters.centre) {
+        query = query.whereILike('centre', `%${filters.centre}%`)
       }
 
-      if (filters.regime_fiscal) {
-        query = query.whereILike('regimeFiscal', `%${filters.regime_fiscal}%`)
+      if (filters.regime) {
+        query = query.whereILike('regime', `%${filters.regime}%`)
       }
 
-      if (filters.is_verified !== undefined) {
-        query = query.where('isVerified', filters.is_verified)
+      if (filters.status) {
+        query = query.where('status', filters.status)
+      }
+
+      if (filters.phone_number) {
+        query = query.whereILike('phoneNumber', `%${filters.phone_number}%`)
       }
 
       // Tri
@@ -85,6 +92,7 @@ export default class TaxPayerController extends BaseController {
         'niu',
         'etat',
         'typeContribuable',
+        'status',
         'lastDgiCheck',
       ]
 
@@ -131,54 +139,75 @@ export default class TaxPayerController extends BaseController {
         'prenomSigle',
         'numeroCniRc',
         'activite',
-        'regimeFiscal',
-        'centreImpots',
+        'regime',
+        'centre',
         'etat',
+        'phoneNumber',
+        'dateNaissance',
       ])
 
       // Validation
       const errors: any = {}
 
-      if (!payload.niu || !payload.niu.trim()) {
-        errors.niu = ['NIU is required']
-      } else if (payload.niu.trim().length < 6) {
-        errors.niu = ['NIU must be at least 6 characters long']
-      }
-
       if (!payload.nomRaisonSociale || !payload.nomRaisonSociale.trim()) {
         errors.nomRaisonSociale = ['Name/Company name is required']
+      }
+
+      // Si NIU fourni, validation et vérification unicité
+      if (payload.niu) {
+        const niuTrimmed = payload.niu.trim()
+        if (niuTrimmed.length < 6) {
+          errors.niu = ['NIU must be at least 6 characters long']
+        } else {
+          // Vérifier si le NIU existe déjà
+          const existingTaxpayer = await Taxpayer.findByNIU(niuTrimmed)
+          if (existingTaxpayer) {
+            return this.validationError(ctx, {
+              niu: ['A taxpayer with this NIU already exists'],
+            })
+          }
+        }
       }
 
       if (Object.keys(errors).length > 0) {
         return this.validationError(ctx, errors)
       }
 
-      // Vérifier si le NIU existe déjà
-      const existingTaxpayer = await Taxpayer.findByNIU(payload.niu.trim())
-      if (existingTaxpayer) {
-        return this.validationError(ctx, {
-          niu: ['A taxpayer with this NIU already exists'],
-        })
-      }
-
-      // Déterminer le type automatiquement
-      const typeContribuable = Taxpayer.getTypeFromNIU(payload.niu.trim())
+      // Déterminer le type automatiquement si NIU fourni
+      const typeContribuable = payload.niu
+        ? Taxpayer.getTypeFromNIU(payload.niu.trim())
+        : 'personne_physique' // Default
 
       // Créer le taxpayer
       const taxpayer = await Taxpayer.create({
-        niu: payload.niu.trim(),
+        niu: payload.niu?.trim() || null,
         nomRaisonSociale: payload.nomRaisonSociale.trim(),
         prenomSigle: payload.prenomSigle?.trim() || null,
         numeroCniRc: payload.numeroCniRc?.trim() || null,
         activite: payload.activite?.trim() || null,
-        regimeFiscal: payload.regimeFiscal?.trim() || null,
-        centreImpots: payload.centreImpots?.trim() || null,
+        regime: payload.regime?.trim() || null,
+        centre: payload.centre?.trim() || null,
         etat: payload.etat?.trim() || null,
+        phoneNumber: payload.phoneNumber?.trim() || null,
+        dateNaissance: payload.dateNaissance ? DateTime.fromISO(payload.dateNaissance) : null,
         typeContribuable,
-        isVerified: false,
+        status: TaxpayerStatus.NOT_YET_CHECKED,
         dgiRawData: {},
         lastDgiCheck: null,
       })
+
+      // Si NIU fourni, lancer synchronisation automatique
+      if (payload.niu?.trim()) {
+        try {
+          await this._performDgiSync(taxpayer)
+        } catch (syncError) {
+          console.error('Auto-sync failed for new taxpayer:', syncError)
+          // On continue même si la sync échoue - le taxpayer est créé
+        }
+      }
+
+      // Recharger pour avoir les données à jour après sync
+      await taxpayer.refresh()
 
       ctx.response.status(201)
       return this.success(
@@ -244,9 +273,11 @@ export default class TaxPayerController extends BaseController {
         'prenomSigle',
         'numeroCniRc',
         'activite',
-        'regimeFiscal',
-        'centreImpots',
+        'regime',
+        'centre',
         'etat',
+        'phoneNumber',
+        'dateNaissance',
       ])
 
       // Validation basique
@@ -263,11 +294,15 @@ export default class TaxPayerController extends BaseController {
       if (payload.numeroCniRc !== undefined)
         taxpayer.numeroCniRc = payload.numeroCniRc?.trim() || null
       if (payload.activite !== undefined) taxpayer.activite = payload.activite?.trim() || null
-      if (payload.regimeFiscal !== undefined)
-        taxpayer.regimeFiscal = payload.regimeFiscal?.trim() || null
-      if (payload.centreImpots !== undefined)
-        taxpayer.centreImpots = payload.centreImpots?.trim() || null
+      if (payload.regime !== undefined) taxpayer.regime = payload.regime?.trim() || null
+      if (payload.centre !== undefined) taxpayer.centre = payload.centre?.trim() || null
       if (payload.etat !== undefined) taxpayer.etat = payload.etat?.trim() || null
+      if (payload.phoneNumber !== undefined)
+        taxpayer.phoneNumber = payload.phoneNumber?.trim() || null
+      if (payload.dateNaissance !== undefined)
+        taxpayer.dateNaissance = payload.dateNaissance
+          ? DateTime.fromISO(payload.dateNaissance)
+          : null
 
       await taxpayer.save()
 
@@ -343,33 +378,13 @@ export default class TaxPayerController extends BaseController {
         return this.notFound(ctx, 'Taxpayer not found')
       }
 
-      // Vérifier le NIU via DGI
-      const result = await this.dgiScraperService.verifierNIU(taxpayer.niu)
-
-      if (!result.success) {
-        return this.error(ctx, result.message, 'DGI_SYNC_FAILED', 400)
-      }
-
-      if (result.data) {
-        // Mettre à jour avec les données DGI
-        await taxpayer.updateFromDGI({
-          nomRaisonSociale: result.data.nomRaisonSociale || taxpayer.nomRaisonSociale,
-          prenomSigle: result.data.prenomSigle,
-          numeroCniRc: result.data.numeroCniRc,
-          activite: result.data.activite,
-          regime: result.data.regime,
-          centre: result.data.centre,
-          etat: result.data.etat,
-        })
-
-        taxpayer.isVerified = true
-      }
+      const result = await this._performDgiSync(taxpayer)
 
       return this.success(
         ctx,
         {
           taxpayer: taxpayer.toJSON(),
-          sync_result: result.data ? 'updated' : 'no_changes',
+          sync_result: result,
         },
         'Taxpayer synchronized with DGI successfully'
       )
@@ -477,6 +492,53 @@ export default class TaxPayerController extends BaseController {
   | Méthodes privées
   |--------------------------------------------------------------------------
   */
+
+  /**
+   * Effectue la synchronisation DGI intelligente
+   */
+  private async _performDgiSync(taxpayer: Taxpayer): Promise<string> {
+    let result: any = null
+
+    // Stratégie 1: Si NIU disponible, utiliser verifierNIU
+    if (taxpayer.niu) {
+      result = await this.dgiScraperService.verifierNIU(taxpayer.niu)
+      if (result.success && result.data) {
+        await taxpayer.updateFromDGI(result.data)
+        return 'verified_by_niu'
+      }
+    }
+
+    // Stratégie 2: Si nom + date de naissance, utiliser rechercher
+    if (taxpayer.nomRaisonSociale && taxpayer.dateNaissance) {
+      const dateFormatted = taxpayer.dateNaissance.toFormat('dd/MM/yyyy')
+      result = await this.dgiScraperService.rechercher(taxpayer.nomRaisonSociale, dateFormatted)
+      if (result.success && result.data && result.data.length > 0) {
+        // Prendre le premier résultat si multiple
+        await taxpayer.updateFromDGI(result.data[0])
+        return 'verified_by_name_and_birth'
+      }
+    }
+
+    // Stratégie 3: Recherche par nom seulement
+    if (taxpayer.nomRaisonSociale) {
+      result = await this.dgiScraperService.rechercherParNom(taxpayer.nomRaisonSociale)
+      if (result.success && result.data && result.data.length > 0) {
+        // Si résultat unique, mettre à jour
+        if (result.data.length === 1) {
+          await taxpayer.updateFromDGI(result.data[0])
+          return 'verified_by_name_single'
+        } else {
+          // Résultats multiples - marquer comme non trouvé pour intervention manuelle
+          await taxpayer.markAsNotFoundInDGI()
+          return 'multiple_results_found'
+        }
+      }
+    }
+
+    // Aucun résultat trouvé
+    await taxpayer.markAsNotFoundInDGI()
+    return 'not_found'
+  }
 
   /**
    * Search by name only
@@ -626,7 +688,15 @@ export default class TaxPayerController extends BaseController {
           db.raw('COUNT(CASE WHEN type_contribuable = ? THEN 1 END) as personnes_morales', [
             'personne_morale',
           ]),
-          db.raw('COUNT(CASE WHEN is_verified = true THEN 1 END) as verified'),
+          db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as verified_found', [
+            TaxpayerStatus.VERIFIED_FOUND,
+          ]),
+          db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as not_yet_checked', [
+            TaxpayerStatus.NOT_YET_CHECKED,
+          ]),
+          db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as verified_not_found', [
+            TaxpayerStatus.VERIFIED_NOT_FOUND,
+          ]),
           db.raw('COUNT(CASE WHEN LOWER(etat) = ? THEN 1 END) as actifs', ['actif'])
         )
         .first()
@@ -635,7 +705,9 @@ export default class TaxPayerController extends BaseController {
         total: Number(stats?.total || 0),
         personnes_physiques: Number(stats?.personnes_physiques || 0),
         personnes_morales: Number(stats?.personnes_morales || 0),
-        verified: Number(stats?.verified || 0),
+        verified_found: Number(stats?.verified_found || 0),
+        not_yet_checked: Number(stats?.not_yet_checked || 0),
+        verified_not_found: Number(stats?.verified_not_found || 0),
         actifs: Number(stats?.actifs || 0),
       }
     } catch (error) {
@@ -644,7 +716,9 @@ export default class TaxPayerController extends BaseController {
         total: 0,
         personnes_physiques: 0,
         personnes_morales: 0,
-        verified: 0,
+        verified_found: 0,
+        not_yet_checked: 0,
+        verified_not_found: 0,
         actifs: 0,
       }
     }
