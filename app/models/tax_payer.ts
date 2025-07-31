@@ -44,9 +44,36 @@ export default class Taxpayer extends BaseModel {
   @column()
   declare isVerified: boolean
 
+  // CORRECTION du champ problématique
   @column({
-    prepare: (value: Record<string, any>) => JSON.stringify(value),
-    consume: (value: string) => JSON.parse(value),
+    prepare: (value: Record<string, any> | null | undefined) => {
+      if (value === null || value === undefined) {
+        return '{}'
+      }
+      if (typeof value === 'string') {
+        return value
+      }
+      try {
+        return JSON.stringify(value)
+      } catch (error) {
+        console.error('Error stringifying dgiRawData:', error)
+        return '{}'
+      }
+    },
+    consume: (value: string | null | undefined) => {
+      if (!value || value === null || value === undefined) {
+        return {}
+      }
+      if (typeof value === 'object') {
+        return value
+      }
+      try {
+        return JSON.parse(value)
+      } catch (error) {
+        console.error('Error parsing dgiRawData:', value, error)
+        return {}
+      }
+    },
   })
   declare dgiRawData: Record<string, any>
 
@@ -154,7 +181,7 @@ export default class Taxpayer extends BaseModel {
       etat: dgiData.etat || null,
       typeContribuable,
       isVerified: true,
-      dgiRawData: dgiData,
+      dgiRawData: dgiData, // Sera automatiquement sérialisé
       lastDgiCheck: DateTime.now(),
     })
   }

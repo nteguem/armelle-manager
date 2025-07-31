@@ -128,10 +128,11 @@ export interface ScraperResponse<T> {
  */
 export interface VerifyResult {
   niu: string
-  nom: string
-  prenom?: string
-  numeroDocument?: string
+  nomRaisonSociale: string
+  prenomSigle?: string
+  numeroCniRc?: string
   activite?: string
   regime?: string
   etat?: string
+  centre?: string
 }

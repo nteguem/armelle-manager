@@ -14,6 +14,7 @@ const PasswordResetController = () => import('#controllers/password_reset_contro
 const RolesController = () => import('#controllers/roles_controller')
 const PermissionsController = () => import('#controllers/permissions_controller')
 const UserController = () => import('#controllers/users_controller')
+const TaxPayerController = () => import('#controllers/tax_payer_controller')
 
 /*
 |--------------------------------------------------------------------------
@@ -174,24 +175,57 @@ router
 
         /*
         |--------------------------------------------------------------------------
-        | Tax Payer Routes (Protected with panel access)
+        | Tax Payers Management Routes
         |--------------------------------------------------------------------------
         */
         router
           .group(() => {
-            // Endpoint universel de recherche
+            /*
+            |--------------------------------------------------------------------------
+            | CRUD Operations
+            |--------------------------------------------------------------------------
+            */
+            // Liste paginée avec filtres et recherche
             router
-              .post('/search', '#controllers/tax_payer_controller.search')
+              .get('/', [TaxPayerController, 'index'])
+              .middleware(middleware.permission(['taxpayer.list']))
+
+            // Création d'un nouveau taxpayer
+            router
+              .post('/', [TaxPayerController, 'store'])
+              .middleware(middleware.permission(['taxpayer.create']))
+
+            // Détails d'un taxpayer spécifique
+            router
+              .get('/:id', [TaxPayerController, 'show'])
+              .middleware(middleware.permission(['taxpayer.view']))
+
+            // Mise à jour d'un taxpayer
+            router
+              .put('/:id', [TaxPayerController, 'update'])
+              .middleware(middleware.permission(['taxpayer.update']))
+
+            // Suppression d'un taxpayer
+            router
+              .delete('/:id', [TaxPayerController, 'destroy'])
+              .middleware(middleware.permission(['taxpayer.delete']))
+
+            // Synchronisation avec la DGI
+            router
+              .post('/:id/sync-dgi', [TaxPayerController, 'syncWithDgi'])
+              .middleware(middleware.permission(['taxpayer.sync']))
+            // Endpoint universel de recherche taxpayer
+            router
+              .post('/search', [TaxPayerController, 'search'])
+              .middleware(middleware.permission(['taxpayer.search']))
+            // Test de connectivité DGI
+            router
+              .get('/test', [TaxPayerController, 'testConnectivity'])
               .middleware(middleware.permission(['taxpayer.search']))
 
-            // Test de connectivité
+            // Nettoyage des ressources DGI
             router
-              .get('/test', '#controllers/tax_payer_controller.testConnectivity')
-              .middleware(middleware.permission(['taxpayer.search']))
-
-            // Nettoyage des ressources
-            router
-              .post('/cleanup', '#controllers/tax_payer_controller.cleanup')
+              .post('/cleanup', [TaxPayerController, 'cleanup'])
               .middleware(middleware.permission(['admin.*']))
           })
           .prefix('/admin/tax-payers')

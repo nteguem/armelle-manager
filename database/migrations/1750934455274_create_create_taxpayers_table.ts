@@ -24,7 +24,7 @@ export default class extends BaseSchema {
 
       // Métadonnées
       table.boolean('is_verified').defaultTo(true).notNullable() // Vérifié via DGI
-      table.json('dgi_raw_data').defaultTo('{}').notNullable() // Données brutes DGI
+      table.text('dgi_raw_data').defaultTo('{}').notNullable() // Données brutes DGI
       table.timestamp('last_dgi_check').nullable()
 
       // Timestamps

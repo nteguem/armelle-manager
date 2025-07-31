@@ -2,8 +2,11 @@ import type { HttpContext } from '@adonisjs/core/http'
 import DGIScraperService from '#services/dgi_scraper_service'
 import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
+import Taxpayer from '#models/tax_payer'
+import { DateTime } from 'luxon'
+import db from '@adonisjs/lucid/services/db'
 
-export default class DgiController extends BaseController {
+export default class TaxPayerController extends BaseController {
   private dgiScraperService: DGIScraperService
 
   constructor() {
@@ -11,14 +14,380 @@ export default class DgiController extends BaseController {
     this.dgiScraperService = new DGIScraperService()
   }
 
+  /*
+  |--------------------------------------------------------------------------
+  | CRUD Operations
+  |--------------------------------------------------------------------------
+  */
+
+  /**
+   * Liste paginée des taxpayers avec filtres
+   * GET /api/v1/admin/tax-payers
+   */
+  async index(ctx: HttpContext) {
+    const { request } = ctx
+
+    try {
+      const page = request.input('page', 1)
+      const limit = Math.min(request.input('limit', 20), 100) // Max 100 par page
+
+      // Filtres
+      const filters = request.only([
+        'search',
+        'type_contribuable',
+        'etat',
+        'centre_impots',
+        'regime_fiscal',
+        'is_verified',
+      ])
+
+      // Tri
+      const sortBy = request.input('sort_by', 'created_at')
+      const sortOrder = request.input('sort_order', 'desc')
+
+      let query = Taxpayer.query()
+
+      // Application des filtres
+      if (filters.search) {
+        query = query.where((builder) => {
+          builder
+            .whereILike('niu', `%${filters.search}%`)
+            .orWhereILike('nomRaisonSociale', `%${filters.search}%`)
+            .orWhereILike('prenomSigle', `%${filters.search}%`)
+        })
+      }
+
+      if (filters.type_contribuable) {
+        query = query.where('typeContribuable', filters.type_contribuable)
+      }
+
+      if (filters.etat) {
+        query = query.whereILike('etat', `%${filters.etat}%`)
+      }
+
+      if (filters.centre_impots) {
+        query = query.whereILike('centreImpots', `%${filters.centre_impots}%`)
+      }
+
+      if (filters.regime_fiscal) {
+        query = query.whereILike('regimeFiscal', `%${filters.regime_fiscal}%`)
+      }
+
+      if (filters.is_verified !== undefined) {
+        query = query.where('isVerified', filters.is_verified)
+      }
+
+      // Tri
+      const allowedSortFields = [
+        'created_at',
+        'updated_at',
+        'nomRaisonSociale',
+        'niu',
+        'etat',
+        'typeContribuable',
+        'lastDgiCheck',
+      ]
+
+      if (allowedSortFields.includes(sortBy)) {
+        query = query.orderBy(sortBy, sortOrder === 'asc' ? 'asc' : 'desc')
+      }
+
+      // Pagination
+      const taxpayers = await query.paginate(page, limit)
+      const paginatedData = taxpayers.toJSON()
+
+      // Statistiques générales
+      const stats = await this._getGeneralStats()
+
+      // Utiliser la méthode paginated du BaseController
+      return this.paginated(
+        ctx,
+        paginatedData.data,
+        {
+          current_page: paginatedData.meta.currentPage,
+          total_pages: paginatedData.meta.lastPage,
+          per_page: paginatedData.meta.perPage,
+          total_items: paginatedData.meta.total,
+        },
+        'Taxpayers retrieved successfully'
+      )
+    } catch (error: any) {
+      console.error('Error fetching taxpayers:', error)
+      return this.error(ctx, 'Failed to fetch taxpayers', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Création d'un nouveau taxpayer
+   * POST /api/v1/admin/tax-payers
+   */
+  async store(ctx: HttpContext) {
+    const { request } = ctx
+
+    try {
+      const payload = request.only([
+        'niu',
+        'nomRaisonSociale',
+        'prenomSigle',
+        'numeroCniRc',
+        'activite',
+        'regimeFiscal',
+        'centreImpots',
+        'etat',
+      ])
+
+      // Validation
+      const errors: any = {}
+
+      if (!payload.niu || !payload.niu.trim()) {
+        errors.niu = ['NIU is required']
+      } else if (payload.niu.trim().length < 6) {
+        errors.niu = ['NIU must be at least 6 characters long']
+      }
+
+      if (!payload.nomRaisonSociale || !payload.nomRaisonSociale.trim()) {
+        errors.nomRaisonSociale = ['Name/Company name is required']
+      }
+
+      if (Object.keys(errors).length > 0) {
+        return this.validationError(ctx, errors)
+      }
+
+      // Vérifier si le NIU existe déjà
+      const existingTaxpayer = await Taxpayer.findByNIU(payload.niu.trim())
+      if (existingTaxpayer) {
+        return this.validationError(ctx, {
+          niu: ['A taxpayer with this NIU already exists'],
+        })
+      }
+
+      // Déterminer le type automatiquement
+      const typeContribuable = Taxpayer.getTypeFromNIU(payload.niu.trim())
+
+      // Créer le taxpayer
+      const taxpayer = await Taxpayer.create({
+        niu: payload.niu.trim(),
+        nomRaisonSociale: payload.nomRaisonSociale.trim(),
+        prenomSigle: payload.prenomSigle?.trim() || null,
+        numeroCniRc: payload.numeroCniRc?.trim() || null,
+        activite: payload.activite?.trim() || null,
+        regimeFiscal: payload.regimeFiscal?.trim() || null,
+        centreImpots: payload.centreImpots?.trim() || null,
+        etat: payload.etat?.trim() || null,
+        typeContribuable,
+        isVerified: false,
+        dgiRawData: {},
+        lastDgiCheck: null,
+      })
+
+      ctx.response.status(201)
+      return this.success(
+        ctx,
+        {
+          taxpayer: taxpayer.toJSON(),
+        },
+        'Taxpayer created successfully'
+      )
+    } catch (error: any) {
+      console.error('Error creating taxpayer:', error)
+      return this.error(ctx, 'Failed to create taxpayer', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Affichage d'un taxpayer spécifique
+   * GET /api/v1/admin/tax-payers/:id
+   */
+  async show(ctx: HttpContext) {
+    const { params } = ctx
+
+    try {
+      const taxpayer = await Taxpayer.find(params.id)
+
+      if (!taxpayer) {
+        return this.notFound(ctx, 'Taxpayer not found')
+      }
+
+      // Récupérer les statistiques
+      const stats = await taxpayer.getStats()
+
+      return this.success(
+        ctx,
+        {
+          taxpayer: taxpayer.toJSON(),
+          stats,
+        },
+        'Taxpayer retrieved successfully'
+      )
+    } catch (error: any) {
+      console.error('Error fetching taxpayer:', error)
+      return this.error(ctx, 'Failed to fetch taxpayer', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Mise à jour d'un taxpayer
+   * PUT /api/v1/admin/tax-payers/:id
+   */
+  async update(ctx: HttpContext) {
+    const { params, request } = ctx
+
+    try {
+      const taxpayer = await Taxpayer.find(params.id)
+
+      if (!taxpayer) {
+        return this.notFound(ctx, 'Taxpayer not found')
+      }
+
+      const payload = request.only([
+        'nomRaisonSociale',
+        'prenomSigle',
+        'numeroCniRc',
+        'activite',
+        'regimeFiscal',
+        'centreImpots',
+        'etat',
+      ])
+
+      // Validation basique
+      if (payload.nomRaisonSociale && !payload.nomRaisonSociale.trim()) {
+        return this.validationError(ctx, {
+          nomRaisonSociale: ['Name/Company name cannot be empty'],
+        })
+      }
+
+      // Mise à jour des champs
+      if (payload.nomRaisonSociale) taxpayer.nomRaisonSociale = payload.nomRaisonSociale.trim()
+      if (payload.prenomSigle !== undefined)
+        taxpayer.prenomSigle = payload.prenomSigle?.trim() || null
+      if (payload.numeroCniRc !== undefined)
+        taxpayer.numeroCniRc = payload.numeroCniRc?.trim() || null
+      if (payload.activite !== undefined) taxpayer.activite = payload.activite?.trim() || null
+      if (payload.regimeFiscal !== undefined)
+        taxpayer.regimeFiscal = payload.regimeFiscal?.trim() || null
+      if (payload.centreImpots !== undefined)
+        taxpayer.centreImpots = payload.centreImpots?.trim() || null
+      if (payload.etat !== undefined) taxpayer.etat = payload.etat?.trim() || null
+
+      await taxpayer.save()
+
+      return this.success(
+        ctx,
+        {
+          taxpayer: taxpayer.toJSON(),
+        },
+        'Taxpayer updated successfully'
+      )
+    } catch (error: any) {
+      console.error('Error updating taxpayer:', error)
+      return this.error(ctx, 'Failed to update taxpayer', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Suppression d'un taxpayer
+   * DELETE /api/v1/admin/tax-payers/:id
+   */
+  async destroy(ctx: HttpContext) {
+    const { params } = ctx
+
+    try {
+      const taxpayer = await Taxpayer.find(params.id)
+
+      if (!taxpayer) {
+        return this.notFound(ctx, 'Taxpayer not found')
+      }
+
+      // Vérifier s'il y a des utilisateurs associés
+      await taxpayer.load('botUsers')
+
+      if (taxpayer.botUsers.length > 0) {
+        return this.error(
+          ctx,
+          `Cannot delete taxpayer. ${taxpayer.botUsers.length} bot user(s) are associated with this taxpayer.`,
+          'TAXPAYER_HAS_USERS',
+          400
+        )
+      }
+
+      await taxpayer.delete()
+
+      return this.success(
+        ctx,
+        {
+          deleted_taxpayer: {
+            id: taxpayer.id,
+            niu: taxpayer.niu,
+            nomRaisonSociale: taxpayer.nomRaisonSociale,
+          },
+        },
+        'Taxpayer deleted successfully'
+      )
+    } catch (error: any) {
+      console.error('Error deleting taxpayer:', error)
+      return this.error(ctx, 'Failed to delete taxpayer', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Synchronisation avec la DGI
+   * POST /api/v1/admin/tax-payers/:id/sync-dgi
+   */
+  async syncWithDgi(ctx: HttpContext) {
+    const { params } = ctx
+
+    try {
+      const taxpayer = await Taxpayer.find(params.id)
+
+      if (!taxpayer) {
+        return this.notFound(ctx, 'Taxpayer not found')
+      }
+
+      // Vérifier le NIU via DGI
+      const result = await this.dgiScraperService.verifierNIU(taxpayer.niu)
+
+      if (!result.success) {
+        return this.error(ctx, result.message, 'DGI_SYNC_FAILED', 400)
+      }
+
+      if (result.data) {
+        // Mettre à jour avec les données DGI
+        await taxpayer.updateFromDGI({
+          nomRaisonSociale: result.data.nomRaisonSociale || taxpayer.nomRaisonSociale,
+          prenomSigle: result.data.prenomSigle,
+          numeroCniRc: result.data.numeroCniRc,
+          activite: result.data.activite,
+          regime: result.data.regime,
+          centre: result.data.centre,
+          etat: result.data.etat,
+        })
+
+        taxpayer.isVerified = true
+      }
+
+      return this.success(
+        ctx,
+        {
+          taxpayer: taxpayer.toJSON(),
+          sync_result: result.data ? 'updated' : 'no_changes',
+        },
+        'Taxpayer synchronized with DGI successfully'
+      )
+    } catch (error: any) {
+      console.error('Error syncing with DGI:', error)
+      return this.error(ctx, 'Failed to sync with DGI', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Méthodes de recherche DGI (existantes)
+  |--------------------------------------------------------------------------
+  */
+
   /**
    * Universal search endpoint for DGI taxpayer data
    * POST /api/v1/admin/tax-payers/search
-   *
-   * Search types:
-   * 1. By name only: { "name": "DUPONT" }
-   * 2. By name and birth date: { "name": "DUPONT", "birthDate": "15/03/1985" }
-   * 3. By NIU verification: { "niu": "12345678" }
    */
   async search(ctx: HttpContext) {
     const { request } = ctx
@@ -53,6 +422,61 @@ export default class DgiController extends BaseController {
       )
     }
   }
+
+  /**
+   * Test connectivity to DGI website
+   * GET /api/v1/admin/tax-payers/test
+   */
+  async testConnectivity(ctx: HttpContext) {
+    try {
+      const result = await this.dgiScraperService.testConnectivity()
+
+      if (result.success) {
+        return this.success(
+          ctx,
+          {
+            connectivity: 'ok',
+            message: result.message,
+            timestamp: Date.now(),
+          },
+          'DGI website is accessible'
+        )
+      } else {
+        return this.error(ctx, result.message, 'DGI_CONNECTIVITY_ERROR', 503)
+      }
+    } catch (error: any) {
+      console.error('Error testing connectivity:', error)
+      return this.error(ctx, 'Failed to test connectivity', 'CONNECTIVITY_TEST_ERROR', 500)
+    }
+  }
+
+  /**
+   * Clean up browser resources
+   * POST /api/v1/admin/tax-payers/cleanup
+   */
+  async cleanup(ctx: HttpContext) {
+    try {
+      await this.dgiScraperService.close()
+
+      return this.success(
+        ctx,
+        {
+          resources_cleared: true,
+          timestamp: Date.now(),
+        },
+        'Browser resources cleaned up successfully'
+      )
+    } catch (error: any) {
+      console.error('Error during cleanup:', error)
+      return this.error(ctx, 'Failed to clean up resources', 'CLEANUP_ERROR', 500)
+    }
+  }
+
+  /*
+  |--------------------------------------------------------------------------
+  | Méthodes privées
+  |--------------------------------------------------------------------------
+  */
 
   /**
    * Search by name only
@@ -188,51 +612,41 @@ export default class DgiController extends BaseController {
   }
 
   /**
-   * Test connectivity to DGI website
-   * GET /api/v1/admin/tax-payers/test
+   * Récupère les statistiques générales
    */
-  async testConnectivity(ctx: HttpContext) {
+  private async _getGeneralStats() {
     try {
-      const result = await this.dgiScraperService.testConnectivity()
-
-      if (result.success) {
-        return this.success(
-          ctx,
-          {
-            connectivity: 'ok',
-            message: result.message,
-            timestamp: Date.now(),
-          },
-          'DGI website is accessible'
+      const stats = await db
+        .from('taxpayers')
+        .select(
+          db.raw('COUNT(*) as total'),
+          db.raw('COUNT(CASE WHEN type_contribuable = ? THEN 1 END) as personnes_physiques', [
+            'personne_physique',
+          ]),
+          db.raw('COUNT(CASE WHEN type_contribuable = ? THEN 1 END) as personnes_morales', [
+            'personne_morale',
+          ]),
+          db.raw('COUNT(CASE WHEN is_verified = true THEN 1 END) as verified'),
+          db.raw('COUNT(CASE WHEN LOWER(etat) = ? THEN 1 END) as actifs', ['actif'])
         )
-      } else {
-        return this.error(ctx, result.message, 'DGI_CONNECTIVITY_ERROR', 503)
+        .first()
+
+      return {
+        total: Number(stats?.total || 0),
+        personnes_physiques: Number(stats?.personnes_physiques || 0),
+        personnes_morales: Number(stats?.personnes_morales || 0),
+        verified: Number(stats?.verified || 0),
+        actifs: Number(stats?.actifs || 0),
       }
-    } catch (error: any) {
-      console.error('Error testing connectivity:', error)
-      return this.error(ctx, 'Failed to test connectivity', 'CONNECTIVITY_TEST_ERROR', 500)
-    }
-  }
-
-  /**
-   * Clean up browser resources
-   * POST /api/v1/admin/tax-payers/cleanup
-   */
-  async cleanup(ctx: HttpContext) {
-    try {
-      await this.dgiScraperService.close()
-
-      return this.success(
-        ctx,
-        {
-          resources_cleared: true,
-          timestamp: Date.now(),
-        },
-        'Browser resources cleaned up successfully'
-      )
-    } catch (error: any) {
-      console.error('Error during cleanup:', error)
-      return this.error(ctx, 'Failed to clean up resources', 'CLEANUP_ERROR', 500)
+    } catch (error) {
+      console.error('Error getting stats:', error)
+      return {
+        total: 0,
+        personnes_physiques: 0,
+        personnes_morales: 0,
+        verified: 0,
+        actifs: 0,
+      }
     }
   }
 }

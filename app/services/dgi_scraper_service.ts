@@ -424,9 +424,9 @@ export default class DGIScraperService {
 
         return {
           niu: getValue('#TabContainer1_TabPanelVerifyNIU_txtNIU2'),
-          nom: getValue('#TabContainer1_TabPanelVerifyNIU_txtRAISON_SOCIALE'),
-          prenom: getValue('#TabContainer1_TabPanelVerifyNIU_txtSIGLE'),
-          numeroDocument: getValue('#TabContainer1_TabPanelVerifyNIU_txtNUMEROCNIRC'),
+          nomRaisonSociale: getValue('#TabContainer1_TabPanelVerifyNIU_txtRAISON_SOCIALE'),
+          prenomSigle: getValue('#TabContainer1_TabPanelVerifyNIU_txtSIGLE'),
+          numeroCniRc: getValue('#TabContainer1_TabPanelVerifyNIU_txtNUMEROCNIRC'),
           activite: getValue('#TabContainer1_TabPanelVerifyNIU_txtACTIVITEDECLAREE'),
           regime: getValue('#TabContainer1_TabPanelVerifyNIU_txtLIBELLEREGIMEFISCAL'),
           etat: getValue('#TabContainer1_TabPanelVerifyNIU_txtACTIF'),
