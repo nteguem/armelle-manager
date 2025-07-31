@@ -1,26 +1,23 @@
-import User from '#models/user'
 import MfaSession from '#models/mfa_session'
+import User from '#models/user'
 import { DateTime } from 'luxon'
-import type { NellysCoinUser, LoginResponse } from '../types/nellys_coin_types.js'
+import type { LoginResponse } from '../types/nellys_coin_types.js'
 
 export default class AuthService {
   /**
    * Save or update user from Nellys Coin response
    */
   async saveUser(loginResponse: any): Promise<User> {
-    // Handle both MFA and direct login responses
-    const token = loginResponse.token || loginResponse.access_token
-    const refreshToken = loginResponse.refreshToken || loginResponse.refresh_token
-
-    // Extract user data from response or decode from JWT
+    let token: string | undefined
+    let refreshToken: string | undefined
     let userData: any = {}
     let userId: string | number | undefined
 
     if (loginResponse.data) {
-      userData = loginResponse.data
-      userId = userData.id || userData.userId || userData.user?.id
-    } else if (loginResponse.user) {
-      userData = loginResponse.user
+      token = loginResponse.data.authToken
+      refreshToken = loginResponse.data.refreshToken
+
+      userData = loginResponse.data.customerData
       userId = userData.id
     }
 
@@ -34,23 +31,19 @@ export default class AuthService {
           userId = decoded.user.id || decoded.user.userId
         }
       } catch (error) {
-        console.error('Failed to decode JWT:', error)
+        console.error(`[AUTH_SERVICE:SAVE_USER] Failed to decode JWT:`, error)
       }
     }
 
     if (!userId) {
+      console.error(`[AUTH_SERVICE:SAVE_USER] Unable to extract user ID from response`)
       throw new Error('Unable to extract user ID from response')
     }
 
     // Extract user details
-    const username = userData.username || userData.user?.username
-    const email =
-      userData.email ||
-      userData.user?.email ||
-      userData.emailAddress ||
-      userData.details?.emailAddress
-    const canAccessPanel =
-      userData.customerType?.description === 'admin' || userData.canAccessPanel || false
+    const username = userData.username
+    const email = userData.emailAddress
+    const canAccessPanel = userData.customerType?.description === 'admin' || false
 
     const user = await User.updateOrCreate(
       { nellysCoinId: String(userId) },
@@ -76,8 +69,7 @@ export default class AuthService {
   /**
    * Create MFA session
    */
-  async createMfaSession(loginResponse: LoginResponse, username: string): Promise<MfaSession> {
-    // Ensure metadata is properly formatted as JSON
+  async createMfaSession(loginResponse: LoginResponse): Promise<MfaSession> {
     const mfaData = loginResponse.data.mfaData || []
 
     // Extract the first MFA method ID if available
@@ -85,12 +77,12 @@ export default class AuthService {
 
     const session = await MfaSession.create({
       loginReference: loginResponse.data.loginReference!,
+      username: '',
       mfaReference: mfaId,
-      username,
       status: 'pending',
       attempts: 0,
-      metadata: JSON.stringify(mfaData), // Explicitly stringify for PostgreSQL
-      expiresAt: DateTime.now().plus({ minutes: 10 }), // 10 minutes expiry
+      metadata: JSON.stringify(mfaData),
+      expiresAt: DateTime.now().plus({ minutes: 10 }),
     })
 
     return session
@@ -106,7 +98,11 @@ export default class AuthService {
       .where('expiresAt', '>', DateTime.now().toSQL())
       .first()
 
-    if (session && session.attempts >= 5) {
+    if (!session) {
+      return null
+    }
+
+    if (session.attempts >= 5) {
       session.status = 'expired'
       await session.save()
       return null
@@ -126,8 +122,10 @@ export default class AuthService {
   /**
    * Complete MFA session
    */
-  async completeMfaSession(session: MfaSession): Promise<void> {
+  async completeMfaSession(session: MfaSession, username: string): Promise<void> {
     session.status = 'verified'
+    session.username = username
+
     await session.save()
   }
 
@@ -157,13 +155,13 @@ export default class AuthService {
    */
   async cleanExpiredSessions(): Promise<void> {
     // Clean expired MFA sessions
-    await MfaSession.query()
+    const expiredMfaSessions = await MfaSession.query()
       .where('expiresAt', '<', DateTime.now().toSQL())
       .orWhere('status', 'expired')
       .delete()
 
     // Clean expired tokens
-    await User.query()
+    const expiredTokens = await User.query()
       .whereNotNull('tokenExpiresAt')
       .where('tokenExpiresAt', '<', DateTime.now().toSQL())
       .update({

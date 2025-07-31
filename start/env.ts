@@ -94,9 +94,12 @@ export default await Env.create(new URL('../', import.meta.url), {
   |----------------------------------------------------------
   */
   NELLYS_COIN_API_URL: Env.schema.string.optional(),
+  NELLYS_COIN_V2_API_URL: Env.schema.string.optional(),
   NELLYS_COIN_PANEL_URL: Env.schema.string.optional(),
   NELLYS_COIN_TIMEOUT: Env.schema.string.optional(),
   NELLYS_COIN_DEBUG: Env.schema.string.optional(),
   NELLYS_COIN_CLIENT_ID: Env.schema.string.optional(),
   NELLYS_COIN_CLIENT_SECRET: Env.schema.string.optional(),
+  NELLYS_COIN_MFA_CLIENT_ID: Env.schema.string.optional(),
+  NELLYS_COIN_MFA_CLIENT_SECRET: Env.schema.string.optional(),
 })
