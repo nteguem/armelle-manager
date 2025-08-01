@@ -182,11 +182,32 @@ router
         */
         router
           .group(() => {
+            // Endpoint universel de recherche taxpayer
+            router
+              .post('/search', [TaxPayerController, 'search'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Test de connectivité DGI
+            router
+              .get('/test', [TaxPayerController, 'testConnectivity'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Nettoyage des ressources DGI
+            router
+              .post('/cleanup', [TaxPayerController, 'cleanup'])
+              .middleware(middleware.permission(['admin.*']))
+
+            // Liste des centres découverts
+            router
+              .get('/centres', [TaxPayerController, 'getCentres'])
+              .middleware(middleware.permission(['taxpayer.list']))
+
             /*
             |--------------------------------------------------------------------------
-            | CRUD Operations
+            | CRUD Operations - Routes avec :id EN DERNIER
             |--------------------------------------------------------------------------
             */
+
             // Liste paginée avec filtres et recherche
             router
               .get('/', [TaxPayerController, 'index'])
@@ -216,29 +237,6 @@ router
             router
               .post('/:id/sync-dgi', [TaxPayerController, 'syncWithDgi'])
               .middleware(middleware.permission(['taxpayer.sync']))
-            // Endpoint universel de recherche taxpayer
-            router
-              .post('/search', [TaxPayerController, 'search'])
-              .middleware(middleware.permission(['taxpayer.search']))
-            // Test de connectivité DGI
-            router
-              .get('/test', [TaxPayerController, 'testConnectivity'])
-              .middleware(middleware.permission(['taxpayer.search']))
-
-            // Nettoyage des ressources DGI
-            router
-              .post('/cleanup', [TaxPayerController, 'cleanup'])
-              .middleware(middleware.permission(['admin.*']))
-
-            // Liste des centres découverts
-            router
-              .get('/centres', [TaxPayerController, 'getCentres'])
-              .middleware(middleware.permission(['taxpayer.list']))
-
-            // Détails d'un centre avec ses contribuables
-            router
-              .get('/centres/:nom', [TaxPayerController, 'getCentreDetails'])
-              .middleware(middleware.permission(['taxpayer.list']))
           })
           .prefix('/admin/tax-payers')
       })
