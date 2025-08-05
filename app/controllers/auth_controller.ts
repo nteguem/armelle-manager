@@ -210,6 +210,8 @@ export default class AuthController extends BaseController {
     const { request } = ctx
     const authHeader = request.header('x-data-access-token')
 
+    // verifier la valilditer du token bearer dans le header (header Authorization: Bearer)
+
     if (!authHeader) {
       throw new Error('Unauthorized - No access token provided')
     }
