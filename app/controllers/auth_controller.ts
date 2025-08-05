@@ -1,4 +1,5 @@
 import BaseController from '#controllers/base_controller'
+import { decode, encode } from '#lib/jwt'
 import User from '#models/user'
 import AuthService from '#services/auth_service'
 import NellysCoinService from '#services/nellys_coin_service'
@@ -135,23 +136,31 @@ export default class AuthController extends BaseController {
         const allPermissions = await userWithRelations!.getAllPermissions()
         const activeRoles = await userWithRelations!.getActiveRoles()
 
-        return this.authSuccess(
+        const serializeData = {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          can_access_panel: user.canAccessPanel,
+          roles: activeRoles.map((role) => ({
+            id: role.id,
+            name: role.name,
+            display_name: role.displayName,
+          })),
+          permissions: allPermissions,
+        }
+
+        const accessDataToken = encode(serializeData)
+
+        return this.success(
           ctx,
-          result.data.authToken,
-          result.data.refreshToken,
-          result.data.expiresIn || 3600,
           {
-            id: user.id,
-            email: user.email,
-            username: user.username,
-            can_access_panel: user.canAccessPanel,
-            roles: activeRoles.map((role) => ({
-              id: role.id,
-              name: role.name,
-              display_name: role.displayName,
-            })),
-            permissions: allPermissions,
-          }
+            data_access_token: accessDataToken,
+            access_token: result.data.authToken,
+            token_type: 'Bearer',
+            refresh_token: result.data.refreshToken,
+            expires_in: result.data.expiresIn || 3600,
+          },
+          'Login successful'
         )
       } catch (error: any) {
         // Increment attempts on failure
@@ -191,6 +200,39 @@ export default class AuthController extends BaseController {
       )
     } catch (error: any) {
       return this.unauthorized(ctx, 'Invalid refresh token', ErrorCodes.AUTH_TOKEN_INVALID)
+    }
+  }
+
+  /**
+   * Get connected user -> /me
+   */
+  async getConnectedUser(ctx: HttpContext) {
+    const { request } = ctx
+    const authHeader = request.header('x-data-access-token')
+
+    if (!authHeader) {
+      throw new Error('Unauthorized - No access token provided')
+    }
+
+    try {
+      const data = decode(authHeader!)
+
+      console.log('data', data)
+
+      return this.success(
+        ctx,
+        {
+          id: data.id,
+          email: data.email,
+          username: data.username,
+          can_access_panel: data.can_access_panel,
+          roles: data.roles,
+          permissions: data.permissions,
+        },
+        'User fetched successfully'
+      )
+    } catch (error) {
+      return this.unauthorized(ctx, 'Unauthorized', ErrorCodes.AUTH_TOKEN_INVALID)
     }
   }
 
