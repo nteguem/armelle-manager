@@ -1,5 +1,5 @@
 import puppeteer, { Browser, Page } from 'puppeteer'
-import type { SearchResult, VerifyResult, ScraperResponse } from '#bot/types/bot_types'
+import type { TaxpayerData, ScraperResponse } from '#types/taxpayer_types'
 
 // Type pour les résultats de recherche
 type SearchResultType = 'aucune' | 'unique' | 'multiple' | 'erreur'
@@ -7,7 +7,7 @@ type SearchResultType = 'aucune' | 'unique' | 'multiple' | 'erreur'
 interface EvaluateResult {
   type: SearchResultType
   message: string
-  data: SearchResult[]
+  data: TaxpayerData[]
 }
 
 export default class DGIScraperService {
@@ -24,7 +24,7 @@ export default class DGIScraperService {
     this.browser = null
   }
 
-  async rechercherParNom(nom: string): Promise<ScraperResponse<SearchResult[]>> {
+  async rechercherParNom(nom: string): Promise<ScraperResponse<TaxpayerData[]>> {
     if (!nom || !nom.trim()) {
       return {
         success: false,
@@ -87,7 +87,7 @@ export default class DGIScraperService {
   /**
    * Effectue la recherche proprement dite (extraction de la logique commune)
    */
-  private async _effectuerRecherche(terme: string): Promise<ScraperResponse<SearchResult[]>> {
+  private async _effectuerRecherche(terme: string): Promise<ScraperResponse<TaxpayerData[]>> {
     let page: Page | null = null
 
     try {
@@ -131,7 +131,7 @@ export default class DGIScraperService {
           return {
             type: 'aucune' as const,
             message: 'Aucune correspondance trouvée',
-            data: [] as SearchResult[],
+            data: [] as TaxpayerData[],
           }
         }
 
@@ -154,13 +154,13 @@ export default class DGIScraperService {
                       ? niuLink.textContent?.trim() || ''
                       : cells[1].textContent?.trim() || '',
                     nomRaisonSociale: cells[2].textContent?.trim() || '',
-                    prenom: cells[3].textContent?.trim() || '',
+                    prenomSigle: cells[3].textContent?.trim() || '',
                     centre: cells[4].textContent?.trim() || '',
                   }
                 }
                 return null
               })
-              .filter((r) => r !== null) as SearchResult[]
+              .filter((r) => r !== null) as TaxpayerData[]
 
             return {
               type: 'multiple' as const,
@@ -186,9 +186,9 @@ export default class DGIScraperService {
                 niu: niu,
                 nomRaisonSociale: lblText,
                 prenomSigle: '',
-                centreImpots: '',
+                centre: '',
               },
-            ] as SearchResult[],
+            ] as TaxpayerData[],
           }
         }
 
@@ -196,7 +196,7 @@ export default class DGIScraperService {
         return {
           type: 'erreur' as const,
           message: 'Réponse inattendue du serveur',
-          data: [] as SearchResult[],
+          data: [] as TaxpayerData[],
         }
       })
 
@@ -251,7 +251,7 @@ export default class DGIScraperService {
     }
   }
 
-  async rechercher(nom: string, dateNaissance: string): Promise<ScraperResponse<SearchResult[]>> {
+  async rechercher(nom: string, dateNaissance: string): Promise<ScraperResponse<TaxpayerData[]>> {
     let page: Page | null = null
 
     try {
@@ -326,15 +326,15 @@ export default class DGIScraperService {
             return {
               niu: getText(cells[1] as HTMLElement),
               nomRaisonSociale: getText(cells[2] as HTMLElement),
-              prenom: getText(cells[3] as HTMLElement),
+              prenomSigle: getText(cells[3] as HTMLElement),
               lieuNaissance: getText(cells[4] as HTMLElement),
-              numeroDocument: getText(cells[5] as HTMLElement),
+              numeroCniRc: getText(cells[5] as HTMLElement),
               activite: getText(cells[6] as HTMLElement),
               regime: getText(cells[7] as HTMLElement),
               centre: getText(cells[8] as HTMLElement),
             }
           })
-          .filter((r) => r !== null) as SearchResult[]
+          .filter((r) => r !== null) as TaxpayerData[]
       })
 
       return {
@@ -381,7 +381,7 @@ export default class DGIScraperService {
     }
   }
 
-  async verifierNIU(niu: string): Promise<ScraperResponse<VerifyResult>> {
+  async verifierNIU(niu: string): Promise<ScraperResponse<TaxpayerData>> {
     if (!niu || !niu.trim()) {
       return {
         success: false,
@@ -424,10 +424,11 @@ export default class DGIScraperService {
 
         return {
           niu: getValue('#TabContainer1_TabPanelVerifyNIU_txtNIU2'),
-          nom: getValue('#TabContainer1_TabPanelVerifyNIU_txtRAISON_SOCIALE'),
-          prenom: getValue('#TabContainer1_TabPanelVerifyNIU_txtSIGLE'),
-          numeroDocument: getValue('#TabContainer1_TabPanelVerifyNIU_txtNUMEROCNIRC'),
+          nomRaisonSociale: getValue('#TabContainer1_TabPanelVerifyNIU_txtRAISON_SOCIALE'),
+          prenomSigle: getValue('#TabContainer1_TabPanelVerifyNIU_txtSIGLE'),
+          numeroCniRc: getValue('#TabContainer1_TabPanelVerifyNIU_txtNUMEROCNIRC'),
           activite: getValue('#TabContainer1_TabPanelVerifyNIU_txtACTIVITEDECLAREE'),
+          centre: getValue('#TabContainer1_TabPanelVerifyNIU_txtLIBELLEUNITEGESTION'),
           regime: getValue('#TabContainer1_TabPanelVerifyNIU_txtLIBELLEREGIMEFISCAL'),
           etat: getValue('#TabContainer1_TabPanelVerifyNIU_txtACTIF'),
         }

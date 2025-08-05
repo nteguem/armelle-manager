@@ -99,39 +99,3 @@ export interface ProgressInfo {
   total: number
   subflowName?: string
 }
-
-/**
- * Résultat de recherche DGI
- */
-export interface SearchResult {
-  niu: string
-  nomRaisonSociale: string
-  prenomSigle?: string
-  centreImpots?: string
-  activite?: string
-  regime?: string
-  numeroCniRc?: string
-}
-
-/**
- * Réponse du scraper DGI
- */
-export interface ScraperResponse<T> {
-  success: boolean
-  message: string
-  data: T | null
-  type?: 'aucune' | 'unique' | 'multiple' | 'erreur'
-}
-
-/**
- * Résultat de vérification NIU
- */
-export interface VerifyResult {
-  niu: string
-  nom: string
-  prenom?: string
-  numeroDocument?: string
-  activite?: string
-  regime?: string
-  etat?: string
-}
