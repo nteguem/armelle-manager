@@ -1,113 +1,40 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import DGIScraperService from '#services/dgi_scraper_service'
 import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
-import Taxpayer from '#models/tax_payer'
-import { DateTime } from 'luxon'
-import db from '@adonisjs/lucid/services/db'
-import { TaxpayerStatus } from '#types/taxpayer_types'
+import TaxpayerService from '#services/taxpayer_service'
+import User from '#models/user'
 
 export default class TaxPayerController extends BaseController {
-  private dgiScraperService: DGIScraperService
+  private taxpayerService: TaxpayerService
 
   constructor() {
     super()
-    this.dgiScraperService = new DGIScraperService()
+    this.taxpayerService = new TaxpayerService()
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | CRUD Operations
-  |--------------------------------------------------------------------------
-  */
-
-  /**
-   * Liste paginée des taxpayers avec filtres
-   * GET /api/v1/admin/tax-payers
-   */
   async index(ctx: HttpContext) {
     const { request } = ctx
 
     try {
       const page = request.input('page', 1)
-      const limit = Math.min(request.input('limit', 20), 100) // Max 100 par page
+      const limit = Math.min(request.input('limit', 20), 100)
 
-      // Filtres
       const filters = request.only([
         'search',
         'type_contribuable',
         'etat',
         'centre',
         'regime',
-        'status',
         'phone_number',
+        'source',
+        'created_by_type',
+        'sort_by',
+        'sort_order',
       ])
 
-      // Tri
-      const sortBy = request.input('sort_by', 'created_at')
-      const sortOrder = request.input('sort_order', 'desc')
-
-      let query = Taxpayer.query()
-
-      // Application des filtres
-      if (filters.search) {
-        query = query.where((builder) => {
-          builder
-            .whereILike('niu', `%${filters.search}%`)
-            .orWhereILike('nomRaisonSociale', `%${filters.search}%`)
-            .orWhereILike('prenomSigle', `%${filters.search}%`)
-            .orWhereILike('phoneNumber', `%${filters.search}%`)
-        })
-      }
-
-      if (filters.type_contribuable) {
-        query = query.where('typeContribuable', filters.type_contribuable)
-      }
-
-      if (filters.etat) {
-        query = query.whereILike('etat', `%${filters.etat}%`)
-      }
-
-      if (filters.centre) {
-        query = query.whereILike('centre', `%${filters.centre}%`)
-      }
-
-      if (filters.regime) {
-        query = query.whereILike('regime', `%${filters.regime}%`)
-      }
-
-      if (filters.status) {
-        query = query.where('status', filters.status)
-      }
-
-      if (filters.phone_number) {
-        query = query.whereILike('phoneNumber', `%${filters.phone_number}%`)
-      }
-
-      // Tri
-      const allowedSortFields = [
-        'created_at',
-        'updated_at',
-        'nomRaisonSociale',
-        'niu',
-        'etat',
-        'typeContribuable',
-        'status',
-        'lastDgiCheck',
-      ]
-
-      if (allowedSortFields.includes(sortBy)) {
-        query = query.orderBy(sortBy, sortOrder === 'asc' ? 'asc' : 'desc')
-      }
-
-      // Pagination
-      const taxpayers = await query.paginate(page, limit)
+      const taxpayers = await this.taxpayerService.searchTaxpayers(filters, { page, limit })
       const paginatedData = taxpayers.toJSON()
 
-      // Statistiques générales
-      const stats = await this._getGeneralStats()
-
-      // Utiliser la méthode paginated du BaseController
       return this.paginated(
         ctx,
         paginatedData.data,
@@ -125,13 +52,8 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /**
-   * Création d'un nouveau taxpayer
-   * POST /api/v1/admin/tax-payers
-   */
   async store(ctx: HttpContext) {
     const { request } = ctx
-
     try {
       const payload = request.only([
         'niu',
@@ -146,21 +68,18 @@ export default class TaxPayerController extends BaseController {
         'dateNaissance',
       ])
 
-      // Validation
       const errors: any = {}
 
       if (!payload.nomRaisonSociale || !payload.nomRaisonSociale.trim()) {
         errors.nomRaisonSociale = ['Name/Company name is required']
       }
 
-      // Si NIU fourni, validation et vérification unicité
       if (payload.niu) {
         const niuTrimmed = payload.niu.trim()
         if (niuTrimmed.length < 6) {
           errors.niu = ['NIU must be at least 6 characters long']
         } else {
-          // Vérifier si le NIU existe déjà
-          const existingTaxpayer = await Taxpayer.findByNIU(niuTrimmed)
+          const existingTaxpayer = await this.taxpayerService.findTaxpayerByNIU(niuTrimmed)
           if (existingTaxpayer) {
             return this.validationError(ctx, {
               niu: ['A taxpayer with this NIU already exists'],
@@ -173,41 +92,13 @@ export default class TaxPayerController extends BaseController {
         return this.validationError(ctx, errors)
       }
 
-      // Déterminer le type automatiquement si NIU fourni
-      const typeContribuable = payload.niu
-        ? Taxpayer.getTypeFromNIU(payload.niu.trim())
-        : 'personne_physique' // Default
-
-      // Créer le taxpayer
-      const taxpayer = await Taxpayer.create({
-        niu: payload.niu?.trim() || null,
-        nomRaisonSociale: payload.nomRaisonSociale.trim(),
-        prenomSigle: payload.prenomSigle?.trim() || null,
-        numeroCniRc: payload.numeroCniRc?.trim() || null,
-        activite: payload.activite?.trim() || null,
-        regime: payload.regime?.trim() || null,
-        centre: payload.centre?.trim() || null,
-        etat: payload.etat?.trim() || null,
-        phoneNumber: payload.phoneNumber?.trim() || null,
-        dateNaissance: payload.dateNaissance ? DateTime.fromISO(payload.dateNaissance) : null,
-        typeContribuable,
-        status: TaxpayerStatus.NOT_YET_CHECKED,
-        dgiRawData: {},
-        lastDgiCheck: null,
-      })
-
-      // Si NIU fourni, lancer synchronisation automatique
-      if (payload.niu?.trim()) {
-        try {
-          await this._performDgiSync(taxpayer)
-        } catch (syncError) {
-          console.error('Auto-sync failed for new taxpayer:', syncError)
-          // On continue même si la sync échoue - le taxpayer est créé
-        }
-      }
-
-      // Recharger pour avoir les données à jour après sync
-      await taxpayer.refresh()
+      const user = ctx.user as User
+      const taxpayer = await this.taxpayerService.createTaxpayer(
+        payload,
+        user.id.toString(),
+        'admin',
+        'imported'
+      )
 
       ctx.response.status(201)
       return this.success(
@@ -223,22 +114,17 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /**
-   * Affichage d'un taxpayer spécifique
-   * GET /api/v1/admin/tax-payers/:id
-   */
   async show(ctx: HttpContext) {
     const { params } = ctx
 
     try {
-      const taxpayer = await Taxpayer.find(params.id)
+      const taxpayer = await this.taxpayerService.findTaxpayerById(params.id)
 
       if (!taxpayer) {
         return this.notFound(ctx, 'Taxpayer not found')
       }
 
-      // Récupérer les statistiques
-      const stats = await taxpayer.getStats()
+      const stats = await this.taxpayerService.getTaxpayerStats(taxpayer.id)
 
       return this.success(
         ctx,
@@ -254,15 +140,11 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /**
-   * Mise à jour d'un taxpayer
-   * PUT /api/v1/admin/tax-payers/:id
-   */
   async update(ctx: HttpContext) {
     const { params, request } = ctx
 
     try {
-      const taxpayer = await Taxpayer.find(params.id)
+      const taxpayer = await this.taxpayerService.findTaxpayerById(params.id)
 
       if (!taxpayer) {
         return this.notFound(ctx, 'Taxpayer not found')
@@ -280,36 +162,18 @@ export default class TaxPayerController extends BaseController {
         'dateNaissance',
       ])
 
-      // Validation basique
       if (payload.nomRaisonSociale && !payload.nomRaisonSociale.trim()) {
         return this.validationError(ctx, {
           nomRaisonSociale: ['Name/Company name cannot be empty'],
         })
       }
 
-      // Mise à jour des champs
-      if (payload.nomRaisonSociale) taxpayer.nomRaisonSociale = payload.nomRaisonSociale.trim()
-      if (payload.prenomSigle !== undefined)
-        taxpayer.prenomSigle = payload.prenomSigle?.trim() || null
-      if (payload.numeroCniRc !== undefined)
-        taxpayer.numeroCniRc = payload.numeroCniRc?.trim() || null
-      if (payload.activite !== undefined) taxpayer.activite = payload.activite?.trim() || null
-      if (payload.regime !== undefined) taxpayer.regime = payload.regime?.trim() || null
-      if (payload.centre !== undefined) taxpayer.centre = payload.centre?.trim() || null
-      if (payload.etat !== undefined) taxpayer.etat = payload.etat?.trim() || null
-      if (payload.phoneNumber !== undefined)
-        taxpayer.phoneNumber = payload.phoneNumber?.trim() || null
-      if (payload.dateNaissance !== undefined)
-        taxpayer.dateNaissance = payload.dateNaissance
-          ? DateTime.fromISO(payload.dateNaissance)
-          : null
-
-      await taxpayer.save()
+      const updatedTaxpayer = await this.taxpayerService.updateTaxpayer(taxpayer.id, payload)
 
       return this.success(
         ctx,
         {
-          taxpayer: taxpayer.toJSON(),
+          taxpayer: updatedTaxpayer.toJSON(),
         },
         'Taxpayer updated successfully'
       )
@@ -319,33 +183,17 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /**
-   * Suppression d'un taxpayer
-   * DELETE /api/v1/admin/tax-payers/:id
-   */
   async destroy(ctx: HttpContext) {
     const { params } = ctx
 
     try {
-      const taxpayer = await Taxpayer.find(params.id)
+      const taxpayer = await this.taxpayerService.findTaxpayerById(params.id)
 
       if (!taxpayer) {
         return this.notFound(ctx, 'Taxpayer not found')
       }
 
-      // Vérifier s'il y a des utilisateurs associés
-      await taxpayer.load('botUsers')
-
-      if (taxpayer.botUsers.length > 0) {
-        return this.error(
-          ctx,
-          `Cannot delete taxpayer. ${taxpayer.botUsers.length} bot user(s) are associated with this taxpayer.`,
-          'TAXPAYER_HAS_USERS',
-          400
-        )
-      }
-
-      await taxpayer.delete()
+      await this.taxpayerService.deleteTaxpayer(taxpayer.id)
 
       return this.success(
         ctx,
@@ -359,26 +207,27 @@ export default class TaxPayerController extends BaseController {
         'Taxpayer deleted successfully'
       )
     } catch (error: any) {
+      if (error.message.includes('Cannot delete taxpayer')) {
+        return this.error(ctx, error.message, 'TAXPAYER_HAS_USERS', 400)
+      }
       console.error('Error deleting taxpayer:', error)
       return this.error(ctx, 'Failed to delete taxpayer', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
     }
   }
 
-  /**
-   * Synchronisation avec la DGI
-   * POST /api/v1/admin/tax-payers/:id/sync-dgi
-   */
   async syncWithDgi(ctx: HttpContext) {
     const { params } = ctx
 
     try {
-      const taxpayer = await Taxpayer.find(params.id)
+      const taxpayer = await this.taxpayerService.findTaxpayerById(params.id)
 
       if (!taxpayer) {
         return this.notFound(ctx, 'Taxpayer not found')
       }
 
-      const result = await this._performDgiSync(taxpayer)
+      const result = await this.taxpayerService.syncTaxpayerWithDGI(taxpayer)
+
+      await taxpayer.refresh()
 
       return this.success(
         ctx,
@@ -394,16 +243,6 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Méthodes de recherche DGI (existantes)
-  |--------------------------------------------------------------------------
-  */
-
-  /**
-   * Universal search endpoint for DGI taxpayer data
-   * POST /api/v1/admin/tax-payers/search
-   */
   async search(ctx: HttpContext) {
     const { request } = ctx
 
@@ -411,14 +250,7 @@ export default class TaxPayerController extends BaseController {
       const payload = request.only(['name', 'birthDate', 'niu'])
       const { name, birthDate, niu } = payload
 
-      // Determine search type based on provided parameters
-      if (niu) {
-        return await this._verifyNiu(ctx, niu)
-      } else if (name && birthDate) {
-        return await this._searchByNameAndBirth(ctx, name, birthDate)
-      } else if (name) {
-        return await this._searchByName(ctx, name)
-      } else {
+      if (!niu && !name) {
         return this.validationError(
           ctx,
           {
@@ -427,7 +259,50 @@ export default class TaxPayerController extends BaseController {
           'Invalid search parameters'
         )
       }
-    } catch (error) {
+
+      if (niu && niu.trim().length < 6) {
+        return this.validationError(ctx, {
+          niu: ['NIU must be at least 6 characters long'],
+        })
+      }
+
+      if (name && name.trim().length < 2) {
+        return this.validationError(ctx, {
+          name: ['Name must be at least 2 characters long'],
+        })
+      }
+
+      if (birthDate) {
+        const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
+        if (!dateRegex.test(birthDate.trim())) {
+          return this.validationError(ctx, {
+            birth_date: ['Invalid date format. Use DD/MM/YYYY'],
+          })
+        }
+      }
+
+      const result = await this.taxpayerService.searchInDGI({ name, birthDate, niu })
+
+      if (!result.success) {
+        return this.error(ctx, result.message, 'DGI_SEARCH_FAILED', 400)
+      }
+
+      let searchType = 'name_only'
+      if (niu) searchType = 'niu_verification'
+      else if (name && birthDate) searchType = 'name_and_birth_date'
+
+      return this.success(
+        ctx,
+        {
+          search_type: searchType,
+          query: { name, birth_date: birthDate, niu },
+          results: result.data || [],
+          count: Array.isArray(result.data) ? result.data.length : result.data ? 1 : 0,
+          found: !!result.data,
+        },
+        result.message
+      )
+    } catch (error: any) {
       console.error('Error during DGI search:', error)
       return this.error(
         ctx,
@@ -438,13 +313,9 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /**
-   * Test connectivity to DGI website
-   * GET /api/v1/admin/tax-payers/test
-   */
   async testConnectivity(ctx: HttpContext) {
     try {
-      const result = await this.dgiScraperService.testConnectivity()
+      const result = await this.taxpayerService.testConnectivity()
 
       if (result.success) {
         return this.success(
@@ -465,13 +336,9 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /**
-   * Clean up browser resources
-   * POST /api/v1/admin/tax-payers/cleanup
-   */
   async cleanup(ctx: HttpContext) {
     try {
-      await this.dgiScraperService.close()
+      await this.taxpayerService.cleanup()
 
       return this.success(
         ctx,
@@ -487,320 +354,15 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
-  /*
-  |--------------------------------------------------------------------------
-  | Méthodes privées
-  |--------------------------------------------------------------------------
-  */
-
-  /**
-   * Effectue la synchronisation DGI intelligente
-   */
-  private async _performDgiSync(taxpayer: Taxpayer): Promise<string> {
-    let result: any = null
-
-    // Stratégie 1: Si NIU disponible, utiliser verifierNIU
-    if (taxpayer.niu) {
-      result = await this.dgiScraperService.verifierNIU(taxpayer.niu)
-      if (result.success && result.data) {
-        await taxpayer.updateFromDGI(result.data)
-        return 'verified_by_niu'
-      }
-    }
-
-    // Stratégie 2: Si nom + date de naissance, utiliser rechercher
-    if (taxpayer.nomRaisonSociale && taxpayer.dateNaissance) {
-      const dateFormatted = taxpayer.dateNaissance.toFormat('dd/MM/yyyy')
-      result = await this.dgiScraperService.rechercher(taxpayer.nomRaisonSociale, dateFormatted)
-      if (result.success && result.data && result.data.length > 0) {
-        // Prendre le premier résultat si multiple
-        await taxpayer.updateFromDGI(result.data[0])
-        return 'verified_by_name_and_birth'
-      }
-    }
-
-    // Stratégie 3: Recherche par nom seulement
-    if (taxpayer.nomRaisonSociale) {
-      result = await this.dgiScraperService.rechercherParNom(taxpayer.nomRaisonSociale)
-      if (result.success && result.data && result.data.length > 0) {
-        // Si résultat unique, mettre à jour
-        if (result.data.length === 1) {
-          await taxpayer.updateFromDGI(result.data[0])
-          return 'verified_by_name_single'
-        } else {
-          // Résultats multiples - marquer comme non trouvé pour intervention manuelle
-          await taxpayer.markAsNotFoundInDGI()
-          return 'multiple_results_found'
-        }
-      }
-    }
-
-    // Aucun résultat trouvé
-    await taxpayer.markAsNotFoundInDGI()
-    return 'not_found'
-  }
-
-  /**
-   * Search by name only
-   */
-  private async _searchByName(ctx: HttpContext, name: string) {
-    // Validation
-    if (!name || !name.trim() || name.trim().length < 2) {
-      return this.validationError(ctx, {
-        name: ['Name must be at least 2 characters long'],
-      })
-    }
-
-    try {
-      const result = await this.dgiScraperService.rechercherParNom(name.trim())
-
-      if (!result.success) {
-        return this.error(ctx, result.message, 'SEARCH_BY_NAME_FAILED', 400)
-      }
-
-      return this.success(
-        ctx,
-        {
-          search_type: 'name_only',
-          query: { name: name.trim() },
-          result_type: result.type || 'success',
-          results: result.data || [],
-          count: result.data?.length || 0,
-        },
-        result.message
-      )
-    } catch (error: any) {
-      return this.error(ctx, 'Technical error during name search', 'NAME_SEARCH_ERROR', 500)
-    }
-  }
-
-  /**
-   * Search by name and birth date
-   */
-  private async _searchByNameAndBirth(ctx: HttpContext, name: string, birthDate: string) {
-    // Validation
-    const errors: any = {}
-
-    if (!name || !name.trim() || name.trim().length < 2) {
-      errors.name = ['Name must be at least 2 characters long']
-    }
-
-    if (!birthDate || !birthDate.trim()) {
-      errors.birth_date = ['Birth date is required']
-    } else {
-      // Validate date format (DD/MM/YYYY)
-      const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
-      if (!dateRegex.test(birthDate.trim())) {
-        errors.birth_date = ['Invalid date format. Use DD/MM/YYYY']
-      }
-    }
-
-    if (Object.keys(errors).length > 0) {
-      return this.validationError(ctx, errors)
-    }
-
-    try {
-      const result = await this.dgiScraperService.rechercher(name.trim(), birthDate.trim())
-
-      if (!result.success) {
-        return this.error(ctx, result.message, 'SEARCH_BY_NAME_AND_BIRTH_FAILED', 400)
-      }
-
-      return this.success(
-        ctx,
-        {
-          search_type: 'name_and_birth_date',
-          query: {
-            name: name.trim(),
-            birth_date: birthDate.trim(),
-          },
-          results: result.data || [],
-          count: result.data?.length || 0,
-        },
-        result.message
-      )
-    } catch (error: any) {
-      return this.error(
-        ctx,
-        'Technical error during name and birth date search',
-        'NAME_BIRTH_SEARCH_ERROR',
-        500
-      )
-    }
-  }
-
-  /**
-   * Verify NIU
-   */
-  private async _verifyNiu(ctx: HttpContext, niu: string) {
-    // Validation
-    if (!niu || !niu.trim()) {
-      return this.validationError(ctx, {
-        niu: ['NIU is required'],
-      })
-    }
-
-    if (niu.trim().length < 6) {
-      return this.validationError(ctx, {
-        niu: ['NIU must be at least 6 characters long'],
-      })
-    }
-
-    try {
-      const result = await this.dgiScraperService.verifierNIU(niu.trim())
-
-      if (!result.success) {
-        return this.error(ctx, result.message, 'NIU_VERIFICATION_FAILED', 400)
-      }
-
-      return this.success(
-        ctx,
-        {
-          search_type: 'niu_verification',
-          query: { niu: niu.trim() },
-          taxpayer: result.data,
-          found: !!result.data,
-        },
-        result.message
-      )
-    } catch (error: any) {
-      return this.error(
-        ctx,
-        'Technical error during NIU verification',
-        'NIU_VERIFICATION_ERROR',
-        500
-      )
-    }
-  }
-
-  /**
-   * Récupère les statistiques générales
-   */
-  private async _getGeneralStats() {
-    try {
-      const stats = await db
-        .from('taxpayers')
-        .select(
-          db.raw('COUNT(*) as total'),
-          db.raw('COUNT(CASE WHEN type_contribuable = ? THEN 1 END) as personnes_physiques', [
-            'personne_physique',
-          ]),
-          db.raw('COUNT(CASE WHEN type_contribuable = ? THEN 1 END) as personnes_morales', [
-            'personne_morale',
-          ]),
-          db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as verified_found', [
-            TaxpayerStatus.VERIFIED_FOUND,
-          ]),
-          db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as not_yet_checked', [
-            TaxpayerStatus.NOT_YET_CHECKED,
-          ]),
-          db.raw('COUNT(CASE WHEN status = ? THEN 1 END) as verified_not_found', [
-            TaxpayerStatus.VERIFIED_NOT_FOUND,
-          ]),
-          db.raw('COUNT(CASE WHEN LOWER(etat) = ? THEN 1 END) as actifs', ['actif'])
-        )
-        .first()
-
-      return {
-        total: Number(stats?.total || 0),
-        personnes_physiques: Number(stats?.personnes_physiques || 0),
-        personnes_morales: Number(stats?.personnes_morales || 0),
-        verified_found: Number(stats?.verified_found || 0),
-        not_yet_checked: Number(stats?.not_yet_checked || 0),
-        verified_not_found: Number(stats?.verified_not_found || 0),
-        actifs: Number(stats?.actifs || 0),
-      }
-    } catch (error) {
-      console.error('Error getting stats:', error)
-      return {
-        total: 0,
-        personnes_physiques: 0,
-        personnes_morales: 0,
-        verified_found: 0,
-        not_yet_checked: 0,
-        verified_not_found: 0,
-        actifs: 0,
-      }
-    }
-  }
-
-  /*
-  |--------------------------------------------------------------------------
-  | Gestion des centres (auto-découverts)
-  |--------------------------------------------------------------------------
-  */
-
-  /**
-   * Liste des centres découverts via DGI
-   * GET /api/v1/admin/tax-payers/centres
-   */
   async getCentres(ctx: HttpContext) {
     try {
       const page = ctx.request.input('page', 1)
       const limit = Math.min(ctx.request.input('limit', 50), 100)
       const search = ctx.request.input('search', '')
 
-      // Récupérer les centres uniques depuis les taxpayers VERIFIED_FOUND
-      let query = db
-        .from('taxpayers')
-        .select(
-          'centre',
-          db.raw('COUNT(*) as taxpayers_count'),
-          db.raw('MIN(created_at) as first_discovered'),
-          db.raw('MAX(last_dgi_check) as last_seen')
-        )
-        .where('status', TaxpayerStatus.VERIFIED_FOUND)
-        .whereNotNull('centre')
-        .where('centre', '!=', '')
-        .groupBy('centre')
+      const result = await this.taxpayerService.getCentres(search, { page, limit })
 
-      // Filtre de recherche
-      if (search.trim()) {
-        query = query.whereILike('centre', `%${search.trim()}%`)
-      }
-
-      // Tri par nombre de contribuables (DESC)
-      query = query.orderBy('taxpayers_count', 'desc')
-
-      // Pagination manuelle
-      const offset = (page - 1) * limit
-      const totalQuery = query.clone()
-      const totalRows = await totalQuery
-      const total = totalRows.length
-
-      const centres = await query.offset(offset).limit(limit)
-
-      // Ajouter le centre "Autres" en premier si pas de recherche
-      let finalCentres = [...centres]
-      if (!search.trim() && page === 1) {
-        const autresCount = await db
-          .from('taxpayers')
-          .count('* as total')
-          .where('status', TaxpayerStatus.VERIFIED_FOUND)
-          .where((builder) => {
-            builder.whereNull('centre').orWhere('centre', '').orWhere('centre', 'Autres')
-          })
-
-        finalCentres.unshift({
-          centre: 'Autres',
-          taxpayers_count: Number(autresCount[0].total || 0),
-          first_discovered: null,
-          last_seen: null,
-          is_default: true,
-        })
-      }
-
-      return this.paginated(
-        ctx,
-        finalCentres,
-        {
-          current_page: page,
-          total_pages: Math.ceil((total + 1) / limit), // +1 pour "Autres"
-          per_page: limit,
-          total_items: total + 1,
-        },
-        'Centres retrieved successfully'
-      )
+      return this.paginated(ctx, result.data, result.pagination, 'Centres retrieved successfully')
     } catch (error: any) {
       console.error('Error fetching centres:', error)
       return this.error(ctx, 'Failed to fetch centres', ErrorCodes.INTERNAL_SERVER_ERROR, 500)

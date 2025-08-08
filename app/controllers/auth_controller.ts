@@ -43,7 +43,39 @@ export default class AuthController extends BaseController {
         return result
       }
 
-      return result
+      // Save user
+      const user = await this.authService.saveUser(result)
+
+      // Load roles and permissions
+      const userWithRelations = await User.query()
+        .where('id', user.id)
+        .preload('roles', (query) => {
+          query.preload('permissions')
+        })
+        .preload('permissions')
+        .first()
+
+      const allPermissions = await userWithRelations!.getAllPermissions()
+      const activeRoles = await userWithRelations!.getActiveRoles()
+
+      return this.authSuccess(
+        ctx,
+        result.data.authToken,
+        result.data.refreshToken,
+        result.data.expiresIn || 3600,
+        {
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          can_access_panel: user.canAccessPanel,
+          roles: activeRoles.map((role) => ({
+            id: role.id,
+            name: role.name,
+            display_name: role.displayName,
+          })),
+          permissions: allPermissions,
+        }
+      )
     } catch (error: any) {
       return this.handleNellysCoinError(ctx, error)
     }

@@ -1,9 +1,10 @@
 import { DateTime } from 'luxon'
-import { BaseModel, column, hasMany, belongsTo } from '@adonisjs/lucid/orm'
-import type { HasMany, BelongsTo } from '@adonisjs/lucid/types/relations'
+import { BaseModel, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
+import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import BotSession from './bot_session.js'
 import BotMessage from './bot_message.js'
 import Taxpayer from './tax_payer.js'
+import BotUserTaxpayer from './bot_user_taxpayers.js'
 
 export default class BotUser extends BaseModel {
   @column({ isPrimary: true })
@@ -25,9 +26,6 @@ export default class BotUser extends BaseModel {
   declare isVerified: boolean
 
   @column()
-  declare taxpayerId: string | null
-
-  @column()
   declare registrationChannel: string
 
   @column()
@@ -39,17 +37,34 @@ export default class BotUser extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  // Relations
   @hasMany(() => BotSession)
   declare sessions: HasMany<typeof BotSession>
 
   @hasMany(() => BotMessage)
   declare messages: HasMany<typeof BotMessage>
 
-  @belongsTo(() => Taxpayer)
-  declare taxpayer: BelongsTo<typeof Taxpayer>
+  @hasMany(() => Taxpayer, {
+    foreignKey: 'createdById',
+  })
+  declare createdTaxpayers: HasMany<typeof Taxpayer>
 
-  // Méthodes utilitaires
+  @manyToMany(() => Taxpayer, {
+    localKey: 'id',
+    pivotForeignKey: 'bot_user_id',
+    relatedKey: 'id',
+    pivotRelatedForeignKey: 'taxpayer_id',
+    pivotTable: 'bot_user_taxpayers',
+    pivotTimestamps: {
+      createdAt: 'linked_at',
+      updatedAt: 'updated_at',
+    },
+    pivotColumns: ['relationship_type'],
+  })
+  declare taxpayers: ManyToMany<typeof Taxpayer>
+
+  @hasMany(() => BotUserTaxpayer, { foreignKey: 'botUserId' })
+  declare taxpayerRelations: HasMany<typeof BotUserTaxpayer>
+
   public get displayName(): string {
     return this.fullName || this.phoneNumber
   }
@@ -79,11 +94,6 @@ export default class BotUser extends BaseModel {
     await this.save()
   }
 
-  public async linkTaxpayer(taxpayerId: string): Promise<void> {
-    this.taxpayerId = taxpayerId
-    await this.save()
-  }
-
   public async updateLanguage(language: 'fr' | 'en'): Promise<void> {
     this.language = language
     await this.save()
@@ -97,17 +107,12 @@ export default class BotUser extends BaseModel {
     await this.save()
   }
 
-  // Scopes pour requêtes fréquentes
   public static verified() {
     return this.query().where('isVerified', true)
   }
 
   public static active() {
     return this.query().where('isActive', true)
-  }
-
-  public static withTaxpayer() {
-    return this.query().whereNotNull('taxpayerId')
   }
 
   public static byChannel(channel: string) {

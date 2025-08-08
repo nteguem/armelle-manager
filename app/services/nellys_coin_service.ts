@@ -54,13 +54,6 @@ export default class NellysCoinService {
   }
 
   /**
-   * Get current access token
-   */
-  private getAccessToken(): string | null {
-    return this.authToken
-  }
-
-  /**
    * Set authentication token manually (for session restoration)
    */
   public setAuthToken(token: string, refreshToken?: string): void {
