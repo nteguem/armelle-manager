@@ -1,8 +1,11 @@
 import { DateTime } from 'luxon'
-import { BaseModel, column, hasMany } from '@adonisjs/lucid/orm'
-import type { HasMany } from '@adonisjs/lucid/types/relations'
+import { BaseModel, belongsTo, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
+import type { BelongsTo, HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import BotUser from './bot_user.js'
-import { type TypeContribuable, TaxpayerStatus, TaxpayerData } from '#types/taxpayer_types'
+import { type TypeContribuable, TaxpayerData } from '#types/taxpayer_types'
+import User from './user.js'
+import BotUserTaxpayer from './bot_user_taxpayers.js'
+import UserTaxpayer from './user_taxpayers.js'
 
 export default class Taxpayer extends BaseModel {
   static table = 'taxpayers'
@@ -38,13 +41,19 @@ export default class Taxpayer extends BaseModel {
   declare typeContribuable: TypeContribuable
 
   @column()
-  declare status: TaxpayerStatus
-
-  @column()
   declare phoneNumber: string | null
 
   @column.date()
   declare dateNaissance: DateTime | null
+
+  @column()
+  declare createdById: string
+
+  @column()
+  declare createdByType: 'bot_user' | 'admin'
+
+  @column()
+  declare source: 'imported' | 'platform_created'
 
   @column({
     prepare: (value: Record<string, any> | null | undefined) => {
@@ -87,65 +96,82 @@ export default class Taxpayer extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  /**
-   * Relations
-   */
-  @hasMany(() => BotUser)
-  declare botUsers: HasMany<typeof BotUser>
+  @belongsTo(() => BotUser, {
+    foreignKey: 'createdById',
+  })
+  declare botUserCreator: BelongsTo<typeof BotUser>
 
-  /**
-   * Méthodes métier
-   */
+  @belongsTo(() => User, {
+    foreignKey: 'createdById',
+  })
+  declare adminCreator: BelongsTo<typeof User>
 
-  /**
-   * Détermine le type de contribuable à partir du NIU
-   */
+  @manyToMany(() => BotUser, {
+    localKey: 'id',
+    pivotForeignKey: 'taxpayer_id',
+    relatedKey: 'id',
+    pivotRelatedForeignKey: 'bot_user_id',
+    pivotTable: 'bot_user_taxpayers',
+    pivotTimestamps: {
+      createdAt: 'linked_at',
+      updatedAt: 'updated_at',
+    },
+    pivotColumns: ['relationship_type'],
+  })
+  declare associatedBotUsers: ManyToMany<typeof BotUser>
+
+  @manyToMany(() => User, {
+    localKey: 'id',
+    pivotForeignKey: 'taxpayer_id',
+    relatedKey: 'id',
+    pivotRelatedForeignKey: 'user_id',
+    pivotTable: 'user_taxpayers',
+    pivotTimestamps: {
+      createdAt: 'assigned_at',
+      updatedAt: 'updated_at',
+    },
+    pivotColumns: ['relationship_type'],
+  })
+  declare associatedUsers: ManyToMany<typeof User>
+
+  @hasMany(() => BotUserTaxpayer, { foreignKey: 'taxpayerId' })
+  declare botUserTaxpayers: HasMany<typeof BotUserTaxpayer>
+
+  @hasMany(() => UserTaxpayer, { foreignKey: 'taxpayerId' })
+  declare userTaxpayers: HasMany<typeof UserTaxpayer>
+
+  public isImported(): boolean {
+    return this.source === 'imported'
+  }
+
+  public isPlatformCreated(): boolean {
+    return this.source === 'platform_created'
+  }
+
+  public async getCreator(): Promise<BotUser | User | null> {
+    if (this.createdByType === 'bot_user') {
+      return await BotUser.find(this.createdById)
+    }
+    return await User.find(this.createdById)
+  }
+
   public static getTypeFromNIU(niu: string): TypeContribuable {
     const firstChar = niu.charAt(0).toUpperCase()
     return firstChar === 'P' ? 'personne_physique' : 'personne_morale'
   }
 
-  /**
-   * Vérifie si c'est une personne physique
-   */
   public isPersonnePhysique(): boolean {
     return this.typeContribuable === 'personne_physique'
   }
 
-  /**
-   * Vérifie si c'est une personne morale
-   */
   public isPersonneMorale(): boolean {
     return this.typeContribuable === 'personne_morale'
   }
 
-  /**
-   * Vérifie si le contribuable est actif
-   */
   public isActif(): boolean {
     return this.etat?.toLowerCase() === 'actif'
   }
 
-  /**
-   * Vérifie si le contribuable est vérifié et trouvé dans la DGI
-   */
-  public isVerifiedFound(): boolean {
-    return this.status === TaxpayerStatus.VERIFIED_FOUND
-  }
-
-  /**
-   * Vérifie si le contribuable a été vérifié (trouvé ou non)
-   */
-  public isVerified(): boolean {
-    return (
-      this.status === TaxpayerStatus.VERIFIED_FOUND ||
-      this.status === TaxpayerStatus.VERIFIED_NOT_FOUND
-    )
-  }
-
-  /**
-   * Récupère le nom complet formaté
-   */
   public getNomComplet(): string {
     if (this.isPersonnePhysique() && this.prenomSigle) {
       return `${this.prenomSigle} ${this.nomRaisonSociale}`
@@ -153,9 +179,6 @@ export default class Taxpayer extends BaseModel {
     return this.nomRaisonSociale
   }
 
-  /**
-   * Récupère le nom d'affichage selon le type
-   */
   public getNomAffichage(): string {
     if (this.isPersonneMorale()) {
       return this.prenomSigle
@@ -165,19 +188,23 @@ export default class Taxpayer extends BaseModel {
     return this.getNomComplet()
   }
 
-  /**
-   * Met à jour la dernière vérification DGI
-   */
   public async updateDgiCheck(): Promise<void> {
     this.lastDgiCheck = DateTime.now()
     await this.save()
   }
 
-  /**
-   * Crée un contribuable à partir des données (avec ou sans DGI)
-   */
-  public static async createFromData(data: TaxpayerData): Promise<Taxpayer> {
-    const typeContribuable = data.niu ? this.getTypeFromNIU(data.niu) : 'personne_physique' // Default si pas de NIU
+  public static async createFromData(
+    data: TaxpayerData,
+    creatorId: string,
+    creatorType: 'bot_user' | 'admin',
+    source: 'imported' | 'platform_created'
+  ): Promise<Taxpayer> {
+    const typeContribuable = data.niu ? this.getTypeFromNIU(data.niu) : 'personne_physique'
+
+    console.log('=== CREATE FROM DATA ===')
+    console.log('creatorId:', creatorId)
+    console.log('creatorType:', creatorType)
+    console.log('source:', source)
 
     return await this.create({
       niu: data.niu || null,
@@ -191,15 +218,14 @@ export default class Taxpayer extends BaseModel {
       phoneNumber: data.phoneNumber || null,
       dateNaissance: data.dateNaissance ? DateTime.fromISO(data.dateNaissance) : null,
       typeContribuable,
-      status: TaxpayerStatus.NOT_YET_CHECKED,
-      dgiRawData: {},
-      lastDgiCheck: null,
+      source,
+      createdById: creatorId,
+      createdByType: creatorType,
+      dgiRawData: data,
+      lastDgiCheck: DateTime.now(),
     })
   }
 
-  /**
-   * Met à jour avec de nouvelles données DGI
-   */
   public async updateFromDGI(dgiData: TaxpayerData): Promise<void> {
     this.nomRaisonSociale = dgiData.nomRaisonSociale
     this.prenomSigle = dgiData.prenomSigle || null
@@ -208,140 +234,72 @@ export default class Taxpayer extends BaseModel {
     this.regime = dgiData.regime || null
     this.centre = dgiData.centre || null
     this.etat = dgiData.etat || null
-    this.status = TaxpayerStatus.VERIFIED_FOUND
     this.dgiRawData = { ...this.dgiRawData, ...dgiData }
     this.lastDgiCheck = DateTime.now()
 
     await this.save()
   }
 
-  /**
-   * Marque comme non trouvé dans la DGI
-   */
-  public async markAsNotFoundInDGI(): Promise<void> {
-    this.status = TaxpayerStatus.VERIFIED_NOT_FOUND
-    this.lastDgiCheck = DateTime.now()
-    await this.save()
-  }
-
-  /**
-   * Récupère les statistiques du contribuable
-   */
   public async getStats(): Promise<{
     nombreUtilisateurs: number
     derniereDGICheck: string | null
     typeAffichage: string
     statut: string
-    statusDGI: string
   }> {
-    const utilisateursCount = await BotUser.query()
-      .where('taxpayer_id', this.id)
+    const utilisateursCount = await BotUserTaxpayer.query()
+      .where('taxpayerId', this.id)
       .count('* as total')
 
     const nombreUtilisateurs = Number(utilisateursCount[0]?.$extras?.total || 0)
-
-    const statusLabels = {
-      [TaxpayerStatus.NOT_YET_CHECKED]: 'Non vérifié',
-      [TaxpayerStatus.VERIFIED_FOUND]: 'Vérifié - Trouvé',
-      [TaxpayerStatus.VERIFIED_NOT_FOUND]: 'Vérifié - Non trouvé',
-    }
 
     return {
       nombreUtilisateurs,
       derniereDGICheck: this.lastDgiCheck?.toFormat('dd/MM/yyyy HH:mm') || null,
       typeAffichage: this.isPersonnePhysique() ? 'Personne Physique' : 'Personne Morale',
       statut: this.isActif() ? 'Actif' : 'Inactif',
-      statusDGI: statusLabels[this.status],
     }
   }
 
-  /**
-   * Scopes de requête
-   */
-
-  /**
-   * Contribuables actifs seulement
-   */
   public static actifs() {
     return this.query().whereILike('etat', 'actif')
   }
 
-  /**
-   * Personnes physiques seulement
-   */
   public static personnesPhysiques() {
     return this.query().where('typeContribuable', 'personne_physique')
   }
 
-  /**
-   * Personnes morales seulement
-   */
   public static personnesMorales() {
     return this.query().where('typeContribuable', 'personne_morale')
   }
 
-  /**
-   * Recherche par NIU
-   */
   public static findByNIU(niu: string) {
     return this.query().where('niu', niu).first()
   }
 
-  /**
-   * Recherche par nom (insensible à la casse)
-   */
   public static searchByName(nomRaisonSociale: string) {
     return this.query().whereILike('nomRaisonSociale', `%${nomRaisonSociale}%`)
   }
 
-  /**
-   * Par centre d'impôts
-   */
   public static byCentre(centre: string) {
     return this.query().whereILike('centre', `%${centre}%`)
   }
 
-  /**
-   * Par régime fiscal
-   */
   public static byRegime(regime: string) {
     return this.query().whereILike('regime', `%${regime}%`)
   }
 
-  /**
-   * Contribuables vérifiés et trouvés dans la DGI
-   */
-  public static verifiedFound() {
-    return this.query().where('status', TaxpayerStatus.VERIFIED_FOUND)
+  public static imported() {
+    return this.query().where('source', 'imported')
   }
 
-  /**
-   * Contribuables vérifiés (trouvés ou non)
-   */
-  public static verified() {
-    return this.query().whereIn('status', [
-      TaxpayerStatus.VERIFIED_FOUND,
-      TaxpayerStatus.VERIFIED_NOT_FOUND,
-    ])
+  public static platformCreated() {
+    return this.query().where('source', 'platform_created')
   }
 
-  /**
-   * Contribuables non encore vérifiés
-   */
-  public static notYetChecked() {
-    return this.query().where('status', TaxpayerStatus.NOT_YET_CHECKED)
+  public static createdBy(creatorId: string, creatorType: 'bot_user' | 'admin') {
+    return this.query().where('createdById', creatorId).where('createdByType', creatorType)
   }
 
-  /**
-   * Par status
-   */
-  public static byStatus(status: TaxpayerStatus) {
-    return this.query().where('status', status)
-  }
-
-  /**
-   * Contribuables nécessitant une re-vérification DGI
-   */
   public static needsCheck(daysOld: number = 30) {
     const checkDate = DateTime.now().minus({ days: daysOld }).toSQL()
     return this.query().where((query) => {
@@ -349,16 +307,10 @@ export default class Taxpayer extends BaseModel {
     })
   }
 
-  /**
-   * Avec NIU (pour synchronisation)
-   */
   public static withNIU() {
     return this.query().whereNotNull('niu')
   }
 
-  /**
-   * Sans NIU
-   */
   public static withoutNIU() {
     return this.query().whereNull('niu')
   }

@@ -15,6 +15,7 @@ const RolesController = () => import('#controllers/roles_controller')
 const PermissionsController = () => import('#controllers/permissions_controller')
 const UserController = () => import('#controllers/users_controller')
 const TaxPayerController = () => import('#controllers/tax_payer_controller')
+const BotUserController = () => import('#controllers/bot_user_controller')
 
 /*
 |--------------------------------------------------------------------------
@@ -240,6 +241,51 @@ router
               .middleware(middleware.permission(['taxpayer.sync']))
           })
           .prefix('/admin/tax-payers')
+
+        /*
+        |--------------------------------------------------------------------------
+        | Bot Users Management Routes
+        |--------------------------------------------------------------------------
+        */
+        router
+          .group(() => {
+            // Statistiques des bot users
+            router
+              .get('/stats', [BotUserController, 'getStats'])
+              .middleware(middleware.permission(['botuser.stats']))
+
+            /*
+            |--------------------------------------------------------------------------
+            | CRUD Operations - Routes avec :id EN DERNIER
+            |--------------------------------------------------------------------------
+            */
+
+            // Liste paginée avec filtres et recherche
+            router
+              .get('/', [BotUserController, 'index'])
+              .middleware(middleware.permission(['botuser.list']))
+
+            // Détails d'un bot user spécifique
+            router
+              .get('/:id', [BotUserController, 'show'])
+              .middleware(middleware.permission(['botuser.view']))
+
+            // Mise à jour d'un bot user
+            router
+              .put('/:id', [BotUserController, 'update'])
+              .middleware(middleware.permission(['botuser.update']))
+
+            // Suppression d'un bot user
+            router
+              .delete('/:id', [BotUserController, 'destroy'])
+              .middleware(middleware.permission(['botuser.delete']))
+
+            // Taxpayers liés à ce bot user
+            router
+              .get('/:id/taxpayers', [BotUserController, 'getTaxpayers'])
+              .middleware(middleware.permission(['botuser.view']))
+          })
+          .prefix('/admin/bot-users')
       })
       .middleware(middleware.nellysAuth())
   })

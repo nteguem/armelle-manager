@@ -5,6 +5,8 @@ import Role from '#models/role'
 import Permission from '#models/permission'
 import UserRole from '#models/user_role'
 import UserPermission from '#models/user_permission'
+import Taxpayer from './tax_payer.js'
+import UserTaxpayer from './user_taxpayers.js'
 
 export default class User extends BaseModel {
   @column({ isPrimary: true })
@@ -49,9 +51,6 @@ export default class User extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
-  /**
-   * Many-to-many relationship with roles
-   */
   @manyToMany(() => Role, {
     localKey: 'id',
     pivotForeignKey: 'user_id',
@@ -66,9 +65,6 @@ export default class User extends BaseModel {
   })
   declare roles: ManyToMany<typeof Role>
 
-  /**
-   * Many-to-many relationship with permissions (direct permissions)
-   */
   @manyToMany(() => Permission, {
     localKey: 'id',
     pivotForeignKey: 'user_id',
@@ -83,23 +79,35 @@ export default class User extends BaseModel {
   })
   declare permissions: ManyToMany<typeof Permission>
 
-  /**
-   * Has many relationship with user roles (for direct queries)
-   */
   @hasMany(() => UserRole)
   declare userRoles: HasMany<typeof UserRole>
 
-  /**
-   * Has many relationship with user permissions (for direct queries)
-   */
   @hasMany(() => UserPermission)
   declare userPermissions: HasMany<typeof UserPermission>
 
-  /**
-   * Check if user has a specific role
-   */
+  @hasMany(() => Taxpayer, {
+    foreignKey: 'createdById',
+  })
+  declare createdTaxpayers: HasMany<typeof Taxpayer>
+
+  @manyToMany(() => Taxpayer, {
+    localKey: 'id',
+    pivotForeignKey: 'user_id',
+    relatedKey: 'id',
+    pivotRelatedForeignKey: 'taxpayer_id',
+    pivotTable: 'user_taxpayers',
+    pivotTimestamps: {
+      createdAt: 'assigned_at',
+      updatedAt: 'updated_at',
+    },
+    pivotColumns: ['relationship_type'],
+  })
+  declare taxpayers: ManyToMany<typeof Taxpayer>
+
+  @hasMany(() => UserTaxpayer, { foreignKey: 'userId' })
+  declare taxpayerRelations: HasMany<typeof UserTaxpayer>
+
   async hasRole(roleName: string): Promise<boolean> {
-    // Use type assertion to fix TypeScript issue
     const user = this as User & { roles?: Role[] }
 
     if (!user.roles) {
@@ -115,14 +123,9 @@ export default class User extends BaseModel {
     )
   }
 
-  /**
-   * Check if user has a specific permission
-   */
   async hasPermission(permissionName: string): Promise<boolean> {
-    // Use type assertion to fix TypeScript issue
     const user = this as User & { roles?: Role[]; permissions?: Permission[] }
 
-    // Load relationships if not loaded
     if (!user.roles) {
       await this.load('roles' as any, (query) => {
         query.preload('permissions' as any)
@@ -132,7 +135,6 @@ export default class User extends BaseModel {
       await this.load('permissions' as any)
     }
 
-    // Check direct permissions
     const hasDirectPermission = user.permissions!.some((permission) => {
       const pivot = permission.$extras.pivot
       const notExpired = !pivot?.expires_at || DateTime.fromISO(pivot.expires_at) > DateTime.now()
@@ -141,7 +143,6 @@ export default class User extends BaseModel {
 
     if (hasDirectPermission) return true
 
-    // Check permissions from roles
     for (const role of user.roles!) {
       if (!role.isActive) continue
 
@@ -156,7 +157,6 @@ export default class User extends BaseModel {
       }
     }
 
-    // Check wildcard permissions
     const parts = permissionName.split('.')
     if (parts.length > 1) {
       return this.hasPermission(`${parts[0]}.*`)
@@ -165,14 +165,10 @@ export default class User extends BaseModel {
     return false
   }
 
-  /**
-   * Get all active permissions for the user
-   */
   async getAllPermissions(): Promise<string[]> {
     const permissions = new Set<string>()
     const user = this as User & { roles?: Role[]; permissions?: Permission[] }
 
-    // Load relationships if not loaded
     if (!user.roles) {
       await this.load('roles' as any, (query) => {
         query.preload('permissions' as any)
@@ -182,7 +178,6 @@ export default class User extends BaseModel {
       await this.load('permissions' as any)
     }
 
-    // Add permissions from roles
     for (const role of user.roles!) {
       if (!role.isActive) continue
 
@@ -195,7 +190,6 @@ export default class User extends BaseModel {
       rolePermissions?.forEach((p) => permissions.add(p.name))
     }
 
-    // Add direct permissions
     for (const permission of user.permissions!) {
       const pivot = permission.$extras.pivot
       if (!pivot?.expires_at || DateTime.fromISO(pivot.expires_at) > DateTime.now()) {
@@ -206,9 +200,6 @@ export default class User extends BaseModel {
     return Array.from(permissions)
   }
 
-  /**
-   * Get all active roles for the user
-   */
   async getActiveRoles(): Promise<Role[]> {
     const user = this as User & { roles?: Role[] }
 
