@@ -1,5 +1,6 @@
 import BaseController from '#controllers/base_controller'
 import { decode, encode } from '#lib/jwt'
+import Role from '#models/role'
 import User from '#models/user'
 import AuthService from '#services/auth_service'
 import NellysCoinService from '#services/nellys_coin_service'
@@ -16,8 +17,8 @@ import type { HttpContext } from '@adonisjs/core/http'
 @inject()
 export default class AuthController extends BaseController {
   constructor(
-    private nellysCoinService: NellysCoinService,
-    private authService: AuthService
+    protected nellysCoinService: NellysCoinService,
+    protected authService: AuthService
   ) {
     super()
   }
@@ -41,11 +42,17 @@ export default class AuthController extends BaseController {
       const result = await this.nellysCoinService.login(loginData)
       if (result.data.loginReference) {
         await this.authService.createMfaSession(result)
-        return result
+        return this.success(ctx, result.data, 'Login successful')
       }
 
       // Save user
       const user = await this.authService.saveUser(result)
+
+      // Assign 'user' role by default if not already assigned
+      const defaultUserRole = await Role.findBy('name', 'user')
+      if (defaultUserRole) {
+        await user.related('roles').sync([defaultUserRole.id], false)
+      }
 
       // Load roles and permissions
       const userWithRelations = await User.query()
@@ -59,23 +66,30 @@ export default class AuthController extends BaseController {
       const allPermissions = await userWithRelations!.getAllPermissions()
       const activeRoles = await userWithRelations!.getActiveRoles()
 
+      const serializeData = {
+        id: user.id,
+        email: user.email,
+        username: user.username,
+        can_access_panel: user.canAccessPanel,
+        roles: activeRoles.map((role) => ({
+          id: role.id,
+          name: role.name,
+          display_name: role.displayName,
+        })),
+        permissions: allPermissions,
+      }
+
+      const dataAccessToken = encode(serializeData)
+
       return this.authSuccess(
         ctx,
         result.data.authToken,
         result.data.refreshToken,
         result.data.expiresIn || 3600,
         {
-          id: user.id,
-          email: user.email,
-          username: user.username,
-          can_access_panel: user.canAccessPanel,
-          roles: activeRoles.map((role) => ({
-            id: role.id,
-            name: role.name,
-            display_name: role.displayName,
-          })),
-          permissions: allPermissions,
-        }
+          ...serializeData,
+        },
+        dataAccessToken
       )
     } catch (error: any) {
       return this.handleNellysCoinError(ctx, error)
@@ -242,26 +256,58 @@ export default class AuthController extends BaseController {
     const { request } = ctx
     const authHeader = request.header('x-data-access-token')
 
-    // verifier la valilditer du token bearer dans le header (header Authorization: Bearer)
-
     if (!authHeader) {
-      throw new Error('Unauthorized - No access token provided')
+      return this.unauthorized(
+        ctx,
+        'Unauthorized - No access token provided',
+        ErrorCodes.AUTH_TOKEN_INVALID
+      )
     }
 
     try {
-      const data = decode(authHeader!)
+      const decodedData = decode(authHeader!)
+      const userId = decodedData.id
 
-      console.log('data', data)
+      if (!userId) {
+        return this.unauthorized(
+          ctx,
+          'Unauthorized - Invalid access token',
+          ErrorCodes.AUTH_TOKEN_INVALID
+        )
+      }
+
+      const user = await User.query()
+        .where('id', userId)
+        .preload('roles', (query) => {
+          query.preload('permissions')
+        })
+        .preload('permissions')
+        .first()
+
+      if (!user) {
+        return this.unauthorized(
+          ctx,
+          'Unauthorized - User not found',
+          ErrorCodes.AUTH_TOKEN_INVALID
+        )
+      }
+
+      const allPermissions = await user.getAllPermissions()
+      const activeRoles = await user.getActiveRoles()
 
       return this.success(
         ctx,
         {
-          id: data.id,
-          email: data.email,
-          username: data.username,
-          can_access_panel: data.can_access_panel,
-          roles: data.roles,
-          permissions: data.permissions,
+          id: user.id,
+          email: user.email,
+          username: user.username,
+          can_access_panel: user.canAccessPanel,
+          roles: activeRoles.map((role) => ({
+            id: role.id,
+            name: role.name,
+            display_name: role.displayName,
+          })),
+          permissions: allPermissions,
         },
         'User fetched successfully'
       )
