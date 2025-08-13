@@ -16,6 +16,8 @@ const PermissionsController = () => import('#controllers/permissions_controller'
 const UserController = () => import('#controllers/users_controller')
 const TaxPayerController = () => import('#controllers/tax_payer_controller')
 const BotUserController = () => import('#controllers/bot_user_controller')
+const TaxRegistrationController = () => import('#controllers/tax_registration_controller')
+const PaymentTransactionController = () => import('#controllers/payment_transaction_controller')
 
 /*
 |--------------------------------------------------------------------------
@@ -240,6 +242,104 @@ router
               .middleware(middleware.permission(['taxpayer.sync']))
           })
           .prefix('/admin/tax-payers')
+
+        /*
+        |--------------------------------------------------------------------------
+        | Tax Registration Management Routes
+        |--------------------------------------------------------------------------
+        */
+        router
+          .group(() => {
+            // Statistiques
+            router
+              .get('/stats', [TaxRegistrationController, 'getStats'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            /*
+            |--------------------------------------------------------------------------
+            | CRUD Operations - Routes avec :id EN DERNIER
+            |--------------------------------------------------------------------------
+            */
+
+            // Liste paginée avec filtres et recherche
+            router
+              .get('/', [TaxRegistrationController, 'index'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Création d'une nouvelle demande d'immatriculation
+            router
+              .post('/', [TaxRegistrationController, 'store'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Détails d'une demande spécifique
+            router
+              .get('/:id', [TaxRegistrationController, 'show'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Mise à jour d'une demande
+            router
+              .put('/:id', [TaxRegistrationController, 'update'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Traitement d'une demande (NIU + document)
+            router
+              .post('/:id/process', [TaxRegistrationController, 'process'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Rejet d'une demande
+            router
+              .post('/:id/reject', [TaxRegistrationController, 'reject'])
+              .middleware(middleware.permission(['taxpayer.search']))
+          })
+          .prefix('/admin/tax-registrations')
+
+        /*
+        |--------------------------------------------------------------------------
+        | Payment Transactions Management Routes
+        |--------------------------------------------------------------------------
+        */
+        router
+          .group(() => {
+            // Statistiques des transactions de paiement
+            router
+              .get('/stats', [PaymentTransactionController, 'getStats'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Récupérer les transactions par demande d'immatriculation
+            router
+              .get('/registration/:registration_id', [
+                PaymentTransactionController,
+                'getByRegistrationRequest',
+              ])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            /*
+            |--------------------------------------------------------------------------
+            | CRUD Operations - Routes avec :id EN DERNIER
+            |--------------------------------------------------------------------------
+            */
+
+            // Liste paginée avec filtres et recherche
+            router
+              .get('/', [PaymentTransactionController, 'index'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Créer et initier une nouvelle transaction de paiement
+            router
+              .post('/', [PaymentTransactionController, 'store'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Détails d'une transaction spécifique
+            router
+              .get('/:id', [PaymentTransactionController, 'show'])
+              .middleware(middleware.permission(['taxpayer.search']))
+
+            // Vérifier manuellement le statut d'une transaction
+            router
+              .post('/:id/check-status', [PaymentTransactionController, 'checkStatus'])
+              .middleware(middleware.permission(['taxpayer.search']))
+          })
+          .prefix('/admin/payment-transactions')
 
         /*
         |--------------------------------------------------------------------------

@@ -23,6 +23,15 @@ export default class extends BaseSchema {
       table.enum('created_by_type', ['bot_user', 'admin']).notNullable()
       table.enum('source', ['imported', 'platform_created']).notNullable()
 
+      // Nouvelle colonne pour la référence vers tax_registration_requests
+      table
+        .integer('tax_registration_request_id')
+        .unsigned()
+        .nullable()
+        .references('id')
+        .inTable('tax_registration_requests')
+        .onDelete('SET NULL')
+
       table.string('phone_number', 20).nullable()
       table.date('date_naissance').nullable()
 
@@ -42,6 +51,7 @@ export default class extends BaseSchema {
       table.index(['created_by_id'])
       table.index(['created_by_type'])
       table.index(['source'])
+      table.index(['tax_registration_request_id'])
       table.index(['created_by_id', 'created_by_type'])
     })
 
