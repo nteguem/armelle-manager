@@ -17,9 +17,16 @@ export default class TaxpayerService {
     data: TaxpayerData,
     creatorId: string,
     creatorType: 'bot_user' | 'admin',
-    source: 'imported' | 'platform_created'
+    source: 'imported' | 'platform_created',
+    taxRegistrationRequestId?: number
   ): Promise<Taxpayer> {
-    const taxpayer = await Taxpayer.createFromData(data, creatorId, creatorType, source)
+    const taxpayer = await Taxpayer.createFromData(
+      data,
+      creatorId,
+      creatorType,
+      source,
+      taxRegistrationRequestId
+    )
 
     if (creatorType === 'bot_user') {
       await this.linkBotUserToTaxpayer(creatorId, taxpayer.id, 'owner')
@@ -28,10 +35,6 @@ export default class TaxpayerService {
     }
 
     return taxpayer
-  }
-
-  async createTaxpayerByBot(data: TaxpayerData, botUserId: string): Promise<Taxpayer> {
-    return await this.createTaxpayer(data, botUserId, 'bot_user', 'platform_created')
   }
 
   async updateTaxpayer(taxpayerId: string, data: Partial<TaxpayerData>): Promise<Taxpayer> {
@@ -217,6 +220,43 @@ export default class TaxpayerService {
     }
 
     throw new Error('Invalid search criteria')
+  }
+
+  async verifyNIUAndCreateTaxpayer(
+    niu: string,
+    userId: number,
+    taxRegistrationRequestId: number
+  ): Promise<{ success: boolean; message: string; taxpayer?: Taxpayer }> {
+    try {
+      const result = await this.dgiScraperService.verifierNIU(niu)
+
+      if (!result.success || !result.data) {
+        return {
+          success: false,
+          message: 'NIU not registered in DGI system',
+        }
+      }
+
+      const taxpayer = await this.createTaxpayer(
+        result.data,
+        userId.toString(),
+        'admin',
+        'platform_created',
+        taxRegistrationRequestId
+      )
+
+      return {
+        success: true,
+        message: 'Taxpayer created successfully from DGI data',
+        taxpayer,
+      }
+    } catch (error) {
+      console.error('Error verifying NIU and creating taxpayer:', error)
+      return {
+        success: false,
+        message: 'Technical error during NIU verification',
+      }
+    }
   }
 
   async syncTaxpayerWithDGI(taxpayer: Taxpayer): Promise<string> {

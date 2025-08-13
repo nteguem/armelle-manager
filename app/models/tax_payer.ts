@@ -6,6 +6,7 @@ import { type TypeContribuable, TaxpayerData } from '#types/taxpayer_types'
 import User from './user.js'
 import BotUserTaxpayer from './bot_user_taxpayers.js'
 import UserTaxpayer from './user_taxpayers.js'
+import TaxRegistrationRequest from './tax_registration_request.js'
 
 export default class Taxpayer extends BaseModel {
   static table = 'taxpayers'
@@ -54,6 +55,9 @@ export default class Taxpayer extends BaseModel {
 
   @column()
   declare source: 'imported' | 'platform_created'
+
+  @column()
+  declare taxRegistrationRequestId: number | null
 
   @column({
     prepare: (value: Record<string, any> | null | undefined) => {
@@ -106,6 +110,11 @@ export default class Taxpayer extends BaseModel {
   })
   declare adminCreator: BelongsTo<typeof User>
 
+  @belongsTo(() => TaxRegistrationRequest, {
+    foreignKey: 'taxRegistrationRequestId',
+  })
+  declare taxRegistrationRequest: BelongsTo<typeof TaxRegistrationRequest>
+
   @manyToMany(() => BotUser, {
     localKey: 'id',
     pivotForeignKey: 'taxpayer_id',
@@ -146,6 +155,10 @@ export default class Taxpayer extends BaseModel {
 
   public isPlatformCreated(): boolean {
     return this.source === 'platform_created'
+  }
+
+  public isFromRegistrationRequest(): boolean {
+    return this.source === 'platform_created' && this.taxRegistrationRequestId !== null
   }
 
   public async getCreator(): Promise<BotUser | User | null> {
@@ -197,7 +210,8 @@ export default class Taxpayer extends BaseModel {
     data: TaxpayerData,
     creatorId: string,
     creatorType: 'bot_user' | 'admin',
-    source: 'imported' | 'platform_created'
+    source: 'imported' | 'platform_created',
+    taxRegistrationRequestId?: number
   ): Promise<Taxpayer> {
     const typeContribuable = data.niu ? this.getTypeFromNIU(data.niu) : 'personne_physique'
 
@@ -205,6 +219,7 @@ export default class Taxpayer extends BaseModel {
     console.log('creatorId:', creatorId)
     console.log('creatorType:', creatorType)
     console.log('source:', source)
+    console.log('taxRegistrationRequestId:', taxRegistrationRequestId)
 
     return await this.create({
       niu: data.niu || null,
@@ -221,6 +236,7 @@ export default class Taxpayer extends BaseModel {
       source,
       createdById: creatorId,
       createdByType: creatorType,
+      taxRegistrationRequestId: taxRegistrationRequestId || null,
       dgiRawData: data,
       lastDgiCheck: DateTime.now(),
     })
@@ -294,6 +310,10 @@ export default class Taxpayer extends BaseModel {
 
   public static platformCreated() {
     return this.query().where('source', 'platform_created')
+  }
+
+  public static fromRegistrationRequests() {
+    return this.query().where('source', 'platform_created').whereNotNull('taxRegistrationRequestId')
   }
 
   public static createdBy(creatorId: string, creatorType: 'bot_user' | 'admin') {

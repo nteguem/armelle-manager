@@ -1,4 +1,4 @@
-import puppeteer, { Browser, Page } from 'puppeteer'
+import { chromium, Browser, Page, BrowserContext, Route } from 'playwright'
 import type { TaxpayerData, ScraperResponse } from '#types/taxpayer_types'
 
 // Type pour les résultats de recherche
@@ -10,11 +10,24 @@ interface EvaluateResult {
   data: TaxpayerData[]
 }
 
+interface PerformanceMetrics {
+  avgResponseTime: number
+  totalRequests: number
+  lastRequestTime: number
+}
+
 export default class DGIScraperService {
   private baseUrl: string
   private loginUrl: string
   private contribuableUrl: string
   private browser: Browser | null
+  private context: BrowserContext | null
+
+  // Propriétés pour optimisation
+  private pagePool: Page[] = []
+  private readonly MAX_PAGES = 2
+  private metrics: PerformanceMetrics
+  private lastNIUSearch: string = ''
 
   constructor() {
     this.baseUrl = 'https://teledeclaration-dgi.cm/modules/Common/Account/eregistration.aspx?er=old'
@@ -22,9 +35,127 @@ export default class DGIScraperService {
     this.contribuableUrl =
       'https://teledeclaration-dgi.cm/modules/Common/Account/contribuable_pp.aspx?t=PPNP'
     this.browser = null
+    this.context = null
+
+    // Initialisation métriques
+    this.metrics = {
+      avgResponseTime: 0,
+      totalRequests: 0,
+      lastRequestTime: 0,
+    }
+  }
+
+  /**
+   * Track performance metrics
+   */
+  private trackPerformance(startTime: number): void {
+    const duration = Date.now() - startTime
+    this.metrics.totalRequests++
+    this.metrics.avgResponseTime =
+      (this.metrics.avgResponseTime * (this.metrics.totalRequests - 1) + duration) /
+      this.metrics.totalRequests
+    this.metrics.lastRequestTime = duration
+
+    console.log(`⚡ Requête: ${duration}ms | Moyenne: ${this.metrics.avgResponseTime.toFixed(0)}ms`)
+  }
+
+  /**
+   * Obtient une page depuis le pool ou en crée une nouvelle
+   */
+  private async getPooledPage(): Promise<Page> {
+    // Essayer de récupérer une page du pool
+    if (this.pagePool.length > 0) {
+      const page = this.pagePool.pop()!
+      console.log(`♻️ Réutilisation page du pool (${this.pagePool.length} restantes)`)
+
+      // Nettoyer la page
+      await page.goto('about:blank')
+      return page
+    }
+
+    // Sinon créer une nouvelle page
+    return await this._createNewPage()
+  }
+
+  /**
+   * Libère une page dans le pool ou la ferme
+   */
+  private async releasePooledPage(page: Page): Promise<void> {
+    try {
+      if (this.pagePool.length < this.MAX_PAGES) {
+        // Nettoyer et remettre dans le pool
+        await page.goto('about:blank')
+        this.pagePool.push(page)
+        console.log(`♻️ Page remise dans le pool (${this.pagePool.length} disponibles)`)
+      } else {
+        // Pool plein, fermer la page
+        await page.close()
+      }
+    } catch (error) {
+      // En cas d'erreur, fermer la page
+      try {
+        await page.close()
+      } catch {}
+    }
+  }
+
+  /**
+   * Crée une nouvelle page optimisée avec Playwright
+   */
+  private async _createNewPage(): Promise<Page> {
+    if (!this.browser) {
+      console.log('🚀 Lancement du navigateur Playwright optimisé...')
+      this.browser = await chromium.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-accelerated-2d-canvas',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=VizDisplayCompositor',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--memory-pressure-off',
+        ],
+      })
+
+      // Créer un contexte persistant pour partager les cookies/session
+      this.context = await this.browser.newContext({
+        userAgent:
+          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+        viewport: { width: 1280, height: 800 },
+        ignoreHTTPSErrors: true,
+        // Optimisations Playwright
+        bypassCSP: true,
+        javaScriptEnabled: true,
+      })
+    }
+
+    const page = await this.context!.newPage()
+
+    // Bloquer les ressources inutiles pour gagner en vitesse
+    await page.route('**/*', (route: Route) => {
+      const resourceType = route.request().resourceType()
+      if (['image', 'stylesheet', 'font', 'media', 'other'].includes(resourceType)) {
+        route.abort()
+      } else {
+        route.continue()
+      }
+    })
+
+    // Timeout par défaut
+    page.setDefaultTimeout(15000)
+    page.setDefaultNavigationTimeout(20000)
+
+    return page
   }
 
   async rechercherParNom(nom: string): Promise<ScraperResponse<TaxpayerData[]>> {
+    const startTime = Date.now()
+
     if (!nom || !nom.trim()) {
       return {
         success: false,
@@ -42,6 +173,7 @@ export default class DGIScraperService {
       const resultComplet = await this._effectuerRecherche(nomTrim)
 
       if (resultComplet.success && resultComplet.data && resultComplet.data.length > 0) {
+        this.trackPerformance(startTime)
         return resultComplet
       }
     }
@@ -49,18 +181,18 @@ export default class DGIScraperService {
     // Stratégie 2: Recherche avec premier nom + filtrage local ultra-rapide
     if (motsNom.length >= 2) {
       const premierNom = motsNom[0]
-      const deuxiemeNom = motsNom[1].toLowerCase() // Pré-calculer en minuscules
+      const deuxiemeNom = motsNom[1].toLowerCase()
 
       const resultPremierNom = await this._effectuerRecherche(premierNom)
 
       if (resultPremierNom.success && resultPremierNom.data && resultPremierNom.data.length > 0) {
         // Filtrage local ultra-rapide avec pré-calcul
         const resultatsFiltrés = resultPremierNom.data.filter((result) => {
-          // Concaténer et convertir en une seule opération
           const nomComplet = (result.nomRaisonSociale + ' ' + result.prenomSigle).toLowerCase()
           return nomComplet.includes(deuxiemeNom)
         })
 
+        this.trackPerformance(startTime)
         return {
           success: true,
           message:
@@ -77,45 +209,44 @@ export default class DGIScraperService {
         }
       }
 
+      this.trackPerformance(startTime)
       return resultPremierNom
     }
 
     // Fallback: nom unique
-    return await this._effectuerRecherche(nomTrim)
+    const result = await this._effectuerRecherche(nomTrim)
+    this.trackPerformance(startTime)
+    return result
   }
 
   /**
-   * Effectue la recherche proprement dite (extraction de la logique commune)
+   * Effectue la recherche proprement dite avec Playwright
    */
   private async _effectuerRecherche(terme: string): Promise<ScraperResponse<TaxpayerData[]>> {
     let page: Page | null = null
 
     try {
-      page = await this._getPage()
+      page = await this.getPooledPage()
 
-      // Essayer plusieurs stratégies de navigation
-      await this._navigateWithRetry(page, this.contribuableUrl)
+      // Navigation avec Playwright (plus robuste)
+      await this._navigateWithRetry(page, this.contribuableUrl, 2)
 
-      // Attendre que la page soit interactive
-      await page.waitForSelector('#ddlSTATUT_ACTIVITE', { visible: true, timeout: 10000 })
-
+      // Playwright attend automatiquement que les éléments soient disponibles
       // Sélectionner "Salarié du secteur public" dans le dropdown
-      await page.select('#ddlSTATUT_ACTIVITE', '1')
+      await page.selectOption('#ddlSTATUT_ACTIVITE', '1', { timeout: 10000 })
 
-      // Attendre que le champ employeur/dirigeant apparaisse avec timeout optimisé
-      await page.waitForSelector('#findIdemployeur_dirigeant_txtNIUCONTRIBUABLE', {
-        visible: true,
-        timeout: 8000,
-      })
+      // Attendre que le formulaire se mette à jour après la sélection
+      await page.waitForTimeout(500)
 
-      // Saisir le terme de recherche dans le champ
-      await page.click('#findIdemployeur_dirigeant_txtNIUCONTRIBUABLE', { clickCount: 3 })
-      await page.type('#findIdemployeur_dirigeant_txtNIUCONTRIBUABLE', terme, { delay: 50 })
+      // Nettoyer et remplir le champ de recherche
+      // Playwright gère mieux les champs dynamiques
+      await page.fill('#findIdemployeur_dirigeant_txtNIUCONTRIBUABLE', '')
+      await page.fill('#findIdemployeur_dirigeant_txtNIUCONTRIBUABLE', terme)
 
       // Cliquer sur le bouton de recherche
       await page.click('#findIdemployeur_dirigeant_ibFindContribuable')
 
-      // Attendre la réponse de manière intelligente
+      // Attendre la réponse avec Playwright
       await this._waitForSearchResponse(page)
 
       // Analyser les résultats
@@ -143,7 +274,7 @@ export default class DGIScraperService {
             '#findIdemployeur_dirigeant_DataGrid1'
           ) as HTMLTableElement
           if (table) {
-            const rows = Array.from(table.querySelectorAll('tr')).slice(1) // Ignorer l'en-tête
+            const rows = Array.from(table.querySelectorAll('tr')).slice(1)
             const results = rows
               .map((row) => {
                 const cells = Array.from(row.querySelectorAll('td'))
@@ -177,7 +308,6 @@ export default class DGIScraperService {
         const niu = niuInput ? niuInput.value.trim() : ''
 
         if (niu && niu.length > 5 && !niu.includes(' ')) {
-          // Vérifier que c'est un NIU valide
           return {
             type: 'unique' as const,
             message: 'Une correspondance trouvée',
@@ -214,25 +344,21 @@ export default class DGIScraperService {
         data: null,
       }
     } finally {
-      if (page) await page.close()
+      if (page) await this.releasePooledPage(page)
     }
   }
 
   /**
-   * Attendre intelligemment la réponse de recherche - COPIE EXACTE de la version JS
+   * Attendre intelligemment la réponse de recherche avec Playwright
    */
   private async _waitForSearchResponse(page: Page): Promise<void> {
     try {
-      // Attendre que la réponse arrive (le texte change)
+      // Playwright a une meilleure gestion de l'attente
       await page.waitForFunction(
         () => {
           const lblNom = document.querySelector('#findIdemployeur_dirigeant_lblNOMCONTRIBUABLE')
           const lblText = lblNom ? lblNom.textContent?.trim() || '' : ''
 
-          // La réponse est prête si on a soit:
-          // - "Aucune correspondance"
-          // - Un nom de contribuable
-          // - "X correspondance(s)"
           return (
             lblText &&
             (lblText.includes('Aucune correspondance') ||
@@ -240,41 +366,39 @@ export default class DGIScraperService {
               (lblText.length > 5 && !lblText.includes('NON_PRO')))
           )
         },
-        {
-          timeout: 15000,
-          polling: 200, // Vérifier toutes les 200ms
-        }
+        { timeout: 15000 }
       )
     } catch (timeoutError) {
-      // Si timeout, attendre 2 secondes comme fallback
-      await this._wait(2000)
+      // Fallback avec waitForTimeout de Playwright
+      await page.waitForTimeout(2000)
     }
   }
 
   async rechercher(nom: string, dateNaissance: string): Promise<ScraperResponse<TaxpayerData[]>> {
+    const startTime = Date.now()
     let page: Page | null = null
 
     try {
-      page = await this._getPage()
+      page = await this.getPooledPage()
 
       // Navigation avec retry
-      await this._navigateWithRetry(page, this.baseUrl)
+      await this._navigateWithRetry(page, this.baseUrl, 2)
 
+      // Attendre les champs du formulaire
       await page.waitForSelector('input[name="txtRAISON_SOCIALE3"]', {
-        visible: true,
+        state: 'visible',
         timeout: 10000,
       })
       await page.waitForSelector('input[name="txtDATECREATION3$myText"]', {
-        visible: true,
+        state: 'visible',
         timeout: 10000,
       })
 
-      // Saisir le nom
-      await page.click('input[name="txtRAISON_SOCIALE3"]', { clickCount: 3 })
-      await page.type('input[name="txtRAISON_SOCIALE3"]', nom, { delay: 50 })
+      // Remplir le nom avec Playwright (gère mieux les champs)
+      await page.fill('input[name="txtRAISON_SOCIALE3"]', nom)
 
-      // Saisir la date (contourne le masque de saisie) - EXACTEMENT comme dans la version JS
-      await page.evaluate((date) => {
+      // Remplir la date (contourne le masque de saisie)
+      await page.evaluate((date: string) => {
         const dateInput = document.querySelector(
           'input[name="txtDATECREATION3$myText"]'
         ) as HTMLInputElement
@@ -285,35 +409,28 @@ export default class DGIScraperService {
         }
       }, dateNaissance)
 
-      await this._wait(500)
+      await page.waitForTimeout(500)
 
       // Lancer la recherche
       await page.click('input[name="btnFIND"]')
 
-      // Attendre la réponse intelligemment
+      // Attendre la réponse
       await this._waitForOldSearchResponse(page)
 
-      // Vérifier les messages d'erreur
-      const errorMessage = await page.evaluate(() => {
+      // Analyser tout en une fois
+      const analysisResult = await page.evaluate(() => {
         const errorEl = document.querySelector('#lblErrMsgNIULOGIN32')
-        return errorEl ? errorEl.textContent?.trim() || '' : ''
-      })
+        const errorMsg = errorEl ? errorEl.textContent?.trim() || '' : ''
 
-      if (errorMessage && errorMessage.includes('Aucune correspondance')) {
-        return {
-          success: true,
-          message: 'Aucune correspondance trouvée',
-          data: [],
+        if (errorMsg && errorMsg.includes('Aucune correspondance')) {
+          return { hasError: true, errorMessage: errorMsg, results: [] }
         }
-      }
 
-      // Extraire les résultats - EXACTEMENT comme dans la version JS
-      const results = await page.evaluate(() => {
         const table = document.querySelector('#gridVoisins') as HTMLTableElement
-        if (!table) return []
+        if (!table) return { hasError: false, errorMessage: '', results: [] }
 
         const rows = Array.from(table.querySelectorAll('tr')).slice(1)
-        return rows
+        const results = rows
           .map((row) => {
             const cells = Array.from(row.querySelectorAll('td'))
             if (cells.length < 9) return null
@@ -335,12 +452,24 @@ export default class DGIScraperService {
             }
           })
           .filter((r) => r !== null) as TaxpayerData[]
+
+        return { hasError: false, errorMessage: '', results }
       })
 
+      if (analysisResult.hasError) {
+        this.trackPerformance(startTime)
+        return {
+          success: true,
+          message: 'Aucune correspondance trouvée',
+          data: [],
+        }
+      }
+
+      this.trackPerformance(startTime)
       return {
         success: true,
-        message: `${results.length} résultat(s) trouvé(s)`,
-        data: results,
+        message: `${analysisResult.results.length} résultat(s) trouvé(s)`,
+        data: analysisResult.results,
       }
     } catch (error) {
       console.error('Erreur recherche par nom et date:', error)
@@ -350,16 +479,15 @@ export default class DGIScraperService {
         data: null,
       }
     } finally {
-      if (page) await page.close()
+      if (page) await this.releasePooledPage(page)
     }
   }
 
   /**
-   * Attendre intelligemment la réponse de l'ancienne recherche - COPIE EXACTE de la version JS
+   * Attendre intelligemment la réponse de l'ancienne recherche avec Playwright
    */
   private async _waitForOldSearchResponse(page: Page): Promise<void> {
     try {
-      // Attendre soit le message d'erreur soit le tableau de résultats
       await page.waitForFunction(
         () => {
           const errorEl = document.querySelector('#lblErrMsgNIULOGIN32')
@@ -370,18 +498,16 @@ export default class DGIScraperService {
             (table && table.querySelectorAll('tr').length > 1)
           )
         },
-        {
-          timeout: 15000,
-          polling: 300,
-        }
+        { timeout: 15000 }
       )
     } catch (timeoutError) {
-      // Fallback
-      await this._wait(2000)
+      await page.waitForTimeout(2000)
     }
   }
 
   async verifierNIU(niu: string): Promise<ScraperResponse<TaxpayerData>> {
+    const startTime = Date.now()
+
     if (!niu || !niu.trim()) {
       return {
         success: false,
@@ -390,32 +516,69 @@ export default class DGIScraperService {
       }
     }
 
+    // Vérifier si c'est le même NIU que la dernière recherche
+    const isNewSearch = this.lastNIUSearch !== niu
+    this.lastNIUSearch = niu
+
     let page: Page | null = null
 
     try {
-      page = await this._getPage()
+      page = await this.getPooledPage()
 
-      // Navigation avec retry
-      await this._navigateWithRetry(page, this.loginUrl)
+      // Navigation avec retry - Forcer le reload si nouvelle recherche
+      if (isNewSearch) {
+        await this._navigateWithRetry(page, this.loginUrl, 2)
+      } else {
+        await page.goto(this.loginUrl, { waitUntil: 'domcontentloaded', timeout: 15000 })
+      }
 
-      await page.waitForSelector('#__tab_TabContainer1_TabPanelVerifyNIU', {
-        visible: true,
-        timeout: 8000,
-      })
+      // Attendre et cliquer sur l'onglet de vérification NIU
       await page.click('#__tab_TabContainer1_TabPanelVerifyNIU')
 
+      // Attendre que le champ NIU soit visible
       await page.waitForSelector('#TabContainer1_TabPanelVerifyNIU_txtNIU2', {
-        visible: true,
+        state: 'visible',
         timeout: 8000,
       })
 
-      await page.type('#TabContainer1_TabPanelVerifyNIU_txtNIU2', niu, { delay: 50 })
+      // IMPORTANT: Nettoyer tous les champs avant nouvelle recherche
+      await page.evaluate(() => {
+        // Reset complet du formulaire
+        const fieldsToReset = [
+          '#TabContainer1_TabPanelVerifyNIU_txtNIU2',
+          '#TabContainer1_TabPanelVerifyNIU_txtRAISON_SOCIALE',
+          '#TabContainer1_TabPanelVerifyNIU_txtSIGLE',
+          '#TabContainer1_TabPanelVerifyNIU_txtNUMEROCNIRC',
+          '#TabContainer1_TabPanelVerifyNIU_txtACTIVITEDECLAREE',
+          '#TabContainer1_TabPanelVerifyNIU_txtLIBELLEUNITEGESTION',
+          '#TabContainer1_TabPanelVerifyNIU_txtLIBELLEREGIMEFISCAL',
+          '#TabContainer1_TabPanelVerifyNIU_txtACTIF',
+        ]
 
+        fieldsToReset.forEach((selector) => {
+          const element = document.querySelector(selector) as HTMLInputElement
+          if (element) {
+            element.value = ''
+            element.dispatchEvent(new Event('input', { bubbles: true }))
+            element.dispatchEvent(new Event('change', { bubbles: true }))
+          }
+        })
+      })
+
+      // Attendre un peu pour que le reset soit effectif
+      await page.waitForTimeout(300)
+
+      // Remplir le champ NIU avec Playwright
+      await page.fill('#TabContainer1_TabPanelVerifyNIU_txtNIU2', '')
+      await page.fill('#TabContainer1_TabPanelVerifyNIU_txtNIU2', niu)
+
+      // Cliquer sur le bouton de recherche
       await page.click('#TabContainer1_TabPanelVerifyNIU_ibFindContribuable')
 
-      // Attendre que les données se chargent intelligemment
+      // Attendre que les données se chargent
       await this._waitForNIUResponse(page)
 
+      // Extraire toutes les données en une seule évaluation
       const data = await page.evaluate(() => {
         const getValue = (selector: string) => {
           const el = document.querySelector(selector) as HTMLInputElement
@@ -434,9 +597,15 @@ export default class DGIScraperService {
         }
       })
 
-      const hasData = Object.values(data).some((value) => value && value.trim())
+      // Vérifier si on a vraiment des données pour CE NIU spécifique
+      const hasValidData =
+        data.nomRaisonSociale &&
+        data.nomRaisonSociale.trim() &&
+        !data.nomRaisonSociale.includes('Aucune') &&
+        data.niu === niu
 
-      if (!hasData) {
+      if (!hasValidData) {
+        this.trackPerformance(startTime)
         return {
           success: true,
           message: 'Aucun contribuable trouvé avec ce NIU',
@@ -444,6 +613,7 @@ export default class DGIScraperService {
         }
       }
 
+      this.trackPerformance(startTime)
       return {
         success: true,
         message: 'Contribuable trouvé',
@@ -457,16 +627,15 @@ export default class DGIScraperService {
         data: null,
       }
     } finally {
-      if (page) await page.close()
+      if (page) await this.releasePooledPage(page)
     }
   }
 
   /**
-   * Attendre intelligemment la réponse NIU - COPIE EXACTE de la version JS
+   * Attendre intelligemment la réponse NIU avec Playwright
    */
   private async _waitForNIUResponse(page: Page): Promise<void> {
     try {
-      // Attendre que au moins un champ soit rempli
       await page.waitForFunction(
         () => {
           const nom = document.querySelector(
@@ -476,125 +645,70 @@ export default class DGIScraperService {
             '#TabContainer1_TabPanelVerifyNIU_txtACTIVITEDECLAREE'
           ) as HTMLInputElement
 
-          return (nom && nom.value.trim()) || (activite && activite.value.trim())
+          const hasContent = (nom && nom.value.trim()) || (activite && activite.value.trim())
+
+          return hasContent || (nom && nom.value === '')
         },
-        {
-          timeout: 15000,
-          polling: 300,
-        }
+        { timeout: 15000 }
       )
+
+      // Petit délai supplémentaire
+      await page.waitForTimeout(500)
     } catch (timeoutError) {
       // Fallback
-      await this._wait(3000)
+      await page.waitForTimeout(2000)
     }
   }
 
   /**
-   * Navigation avec retry et fallbacks
+   * Navigation avec retry et fallbacks - Version Playwright
    */
-  private async _navigateWithRetry(page: Page, url: string, maxRetries: number = 3): Promise<void> {
+  private async _navigateWithRetry(page: Page, url: string, maxRetries: number = 2): Promise<void> {
     let lastError: Error | null = null
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        console.log(`🔄 Tentative ${attempt}/${maxRetries} de navigation vers ${url}`)
+        console.log(`🔄 Navigation vers ${url} (tentative ${attempt}/${maxRetries})`)
 
-        // Essayer différentes stratégies selon la tentative
         if (attempt === 1) {
-          // Première tentative : navigation standard
+          // Première tentative : navigation rapide
           await page.goto(url, {
             waitUntil: 'domcontentloaded',
-            timeout: 20000,
-          })
-        } else if (attempt === 2) {
-          // Deuxième tentative : attendre le réseau
-          await page.goto(url, {
-            waitUntil: 'networkidle2',
-            timeout: 25000,
+            timeout: 15000,
           })
         } else {
-          // Dernière tentative : attendre tout
+          // Tentatives suivantes : plus conservatrices
           await page.goto(url, {
-            waitUntil: 'load',
-            timeout: 30000,
+            waitUntil: 'networkidle',
+            timeout: 20000,
           })
         }
 
-        // Si on arrive ici, la navigation a réussi
-        console.log(`✅ Navigation réussie à la tentative ${attempt}`)
+        // Vérifier que la page est bien chargée avec Playwright
+        await page.waitForLoadState('domcontentloaded')
+
+        console.log(`✅ Navigation réussie`)
         return
       } catch (error) {
         lastError = error as Error
         console.log(`❌ Tentative ${attempt} échouée:`, error.message)
 
         if (attempt < maxRetries) {
-          // Attendre avant de réessayer
-          await this._wait(2000 * attempt) // 2s, 4s, 6s...
+          await page.waitForTimeout(1000 * attempt)
         }
       }
     }
 
-    // Si toutes les tentatives ont échoué
     throw new Error(
       `Navigation échouée après ${maxRetries} tentatives. Dernière erreur: ${lastError?.message}`
     )
   }
 
   /**
-   * Obtient une page Puppeteer configurée (version plus robuste)
-   */
-  private async _getPage(): Promise<Page> {
-    if (!this.browser) {
-      console.log('🚀 Lancement du navigateur...')
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-web-security', // Ajout pour éviter les problèmes CORS
-          '--disable-features=VizDisplayCompositor', // Améliore la stabilité
-        ],
-      })
-    }
-
-    const page = await this.browser.newPage()
-
-    // Configuration plus robuste
-    await page.setDefaultNavigationTimeout(30000) // Augmenté
-    await page.setDefaultTimeout(15000)
-
-    // User agent pour éviter la détection de bot
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36'
-    )
-
-    // Gestion des ressources avec logging
-    await page.setRequestInterception(true)
-    page.on('request', (req) => {
-      if (['image', 'stylesheet', 'font', 'media'].includes(req.resourceType())) {
-        req.abort()
-      } else {
-        req.continue()
-      }
-    })
-
-    // Logging des erreurs réseau
-    page.on('requestfailed', (request) => {
-      console.log(`❌ Requête échouée: ${request.url()} - ${request.failure()?.errorText}`)
-    })
-
-    return page
-  }
-
-  /**
-   * Attendre un délai (réduit) - COPIE EXACTE de la version JS
+   * Attendre un délai - Utilise waitForTimeout de Playwright
    */
   private async _wait(ms: number): Promise<void> {
+    // Note: avec Playwright on utilise page.waitForTimeout() directement dans les pages
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
@@ -605,7 +719,7 @@ export default class DGIScraperService {
     let page: Page | null = null
 
     try {
-      page = await this._getPage()
+      page = await this.getPooledPage()
 
       console.log('🔍 Test de connectivité DGI...')
       await page.goto('https://teledeclaration-dgi.cm/', {
@@ -627,14 +741,43 @@ export default class DGIScraperService {
         message: `Site inaccessible: ${error.message}`,
       }
     } finally {
-      if (page) await page.close()
+      if (page) await this.releasePooledPage(page)
     }
   }
 
+  /**
+   * Obtenir les métriques de performance
+   */
+  getMetrics(): PerformanceMetrics {
+    return { ...this.metrics }
+  }
+
+  /**
+   * Fermer proprement le service
+   */
   async close(): Promise<void> {
+    console.log('🔒 Fermeture du scraper...')
+
+    // Fermer toutes les pages du pool
+    for (const page of this.pagePool) {
+      try {
+        await page.close()
+      } catch {}
+    }
+    this.pagePool = []
+
+    // Fermer le contexte
+    if (this.context) {
+      await this.context.close()
+      this.context = null
+    }
+
+    // Fermer le navigateur
     if (this.browser) {
       await this.browser.close()
       this.browser = null
     }
+
+    console.log('✅ Scraper fermé')
   }
 }
