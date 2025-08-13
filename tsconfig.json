@@ -3,6 +3,11 @@
   "compilerOptions": {
     "rootDir": "./",
     "outDir": "./build",
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    "paths": {
+      "#start/*": ["./start/*"],
+      "#app/*": ["./app/*"],
+      "#lib/*": ["./lib/*"]
+    }
   }
 }

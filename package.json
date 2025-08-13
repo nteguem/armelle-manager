@@ -37,7 +37,8 @@
     "#bot/*": "./app/bot/*.js",
     "#bot/*/*": "./app/bot/*/*.js",
     "#service/*": "./app/service/*.js",
-    "#types/*": "./app/types/*.js"
+    "#types/*": "./app/types/*.js",
+    "#lib/*": "./lib/*.js"
   },
   "devDependencies": {
     "@adonisjs/assembler": "^7.8.2",

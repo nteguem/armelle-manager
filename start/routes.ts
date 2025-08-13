@@ -53,6 +53,7 @@ router
       router.post('/auth/setup-authenticator', [AuthController, 'handleMfaConfiguration'])
       router.post('/auth/verify-authenticator', [AuthController, 'handleMfaVerification'])
       router.post('/auth/confirm-mfa-code', [AuthController, 'confirmMfaCode'])
+      router.get('/auth/me', [AuthController, 'getConnectedUser'])
 
       // Token refresh
       router.post('/auth/refresh', [AuthController, 'refreshToken'])
@@ -129,7 +130,7 @@ router
 
         /*
         |--------------------------------------------------------------------------
-        | Users Management Routes 
+        | Users Management Routes
         |--------------------------------------------------------------------------
         */
         router

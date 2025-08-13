@@ -88,11 +88,12 @@ export default class BaseController {
     token: string,
     refreshToken: string | null,
     expiresIn: string | number,
-    user: any
+    user: any,
+    dataAccessToken: string
   ) {
     const requestId = this.getRequestId(ctx)
     return ctx.response.ok(
-      ResponseFormatter.authSuccess(token, refreshToken, expiresIn, user, requestId)
+      ResponseFormatter.authSuccess(token, refreshToken, expiresIn, user, requestId, dataAccessToken)
     )
   }
 

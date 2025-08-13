@@ -102,4 +102,12 @@ export default await Env.create(new URL('../', import.meta.url), {
   NELLYS_COIN_CLIENT_SECRET: Env.schema.string.optional(),
   NELLYS_COIN_MFA_CLIENT_ID: Env.schema.string.optional(),
   NELLYS_COIN_MFA_CLIENT_SECRET: Env.schema.string.optional(),
+
+  /*
+  |----------------------------------------------------------
+  | Variables for configuring JWT
+  |----------------------------------------------------------
+  */
+  JWT_SECRET: Env.schema.string(),
+  JWT_EXPIRES_IN: Env.schema.number(),
 })

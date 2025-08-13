@@ -89,6 +89,36 @@ export default class extends BaseSeeder {
           description: 'Effectuer des recherches dans la base DGI',
         },
         {
+          name: 'taxpayer.list',
+          displayName: 'Lister les contribuables',
+          description: 'Voir la liste des contribuables',
+        },
+        {
+          name: 'taxpayer.create',
+          displayName: 'Créer un contribuable',
+          description: 'Créer de nouveaux contribuables',
+        },
+        {
+          name: 'taxpayer.view',
+          displayName: 'Voir un contribuable',
+          description: "Voir les détails d'un contribuable",
+        },
+        {
+          name: 'taxpayer.update',
+          displayName: 'Modifier un contribuable',
+          description: 'Modifier les informations des contribuables',
+        },
+        {
+          name: 'taxpayer.delete',
+          displayName: 'Supprimer un contribuable',
+          description: 'Supprimer des contribuables',
+        },
+        {
+          name: 'taxpayer.sync',
+          displayName: 'Synchroniser avec DGI',
+          description: 'Synchroniser les données des contribuables avec la DGI',
+        },
+        {
           name: 'taxpayer.export',
           displayName: 'Exporter DGI',
           description: 'Exporter les résultats de recherche DGI',
@@ -102,6 +132,33 @@ export default class extends BaseSeeder {
           name: 'taxpayer.view_history',
           displayName: 'Historique DGI',
           description: "Voir l'historique des recherches",
+        },
+      ],
+      botuser: [
+        {
+          name: 'botuser.stats',
+          displayName: 'Statistiques des utilisateurs bot',
+          description: 'Voir les statistiques des utilisateurs bot',
+        },
+        {
+          name: 'botuser.list',
+          displayName: 'Lister les utilisateurs bot',
+          description: 'Voir la liste des utilisateurs bot',
+        },
+        {
+          name: 'botuser.view',
+          displayName: 'Voir un utilisateur bot',
+          description: "Voir les détails d'un utilisateur bot",
+        },
+        {
+          name: 'botuser.update',
+          displayName: 'Modifier un utilisateur bot',
+          description: 'Modifier les informations des utilisateurs bot',
+        },
+        {
+          name: 'botuser.delete',
+          displayName: 'Supprimer un utilisateur bot',
+          description: 'Supprimer des utilisateurs bot',
         },
       ],
       reports: [
@@ -189,6 +246,7 @@ export default class extends BaseSeeder {
         'reports.*',
         'admin.*',
         'profile.*',
+        'botuser.*',
       ],
       manager: [
         'users.list',

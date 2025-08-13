@@ -173,7 +173,8 @@ export default class ResponseFormatter {
     refreshToken: string | null,
     expiresIn: string | number,
     user: any,
-    requestId?: string
+    requestId?: string,
+    dataAccessToken?: string
   ): ApiResponse {
     return this.success(
       {
@@ -182,6 +183,7 @@ export default class ResponseFormatter {
         expires_in: typeof expiresIn === 'string' ? Number.parseInt(expiresIn) : expiresIn,
         ...(refreshToken && { refresh_token: refreshToken }),
         user,
+        ...(dataAccessToken && { data_access_token: dataAccessToken }),
       },
       undefined,
       requestId
