@@ -253,7 +253,7 @@ router
             // Statistiques
             router
               .get('/stats', [TaxRegistrationController, 'getStats'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['registration.stats']))
 
             /*
             |--------------------------------------------------------------------------
@@ -264,32 +264,32 @@ router
             // Liste paginée avec filtres et recherche
             router
               .get('/', [TaxRegistrationController, 'index'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['registration.list']))
 
             // Création d'une nouvelle demande d'immatriculation
             router
               .post('/', [TaxRegistrationController, 'store'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['registration.create']))
 
             // Détails d'une demande spécifique
             router
               .get('/:id', [TaxRegistrationController, 'show'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['registration.view']))
 
             // Mise à jour d'une demande
             router
               .put('/:id', [TaxRegistrationController, 'update'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['registration.update']))
 
             // Traitement d'une demande (NIU + document)
             router
               .post('/:id/process', [TaxRegistrationController, 'process'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['registration.process']))
 
             // Rejet d'une demande
             router
               .post('/:id/reject', [TaxRegistrationController, 'reject'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['registration.process']))
           })
           .prefix('/admin/tax-registrations')
 
@@ -303,7 +303,7 @@ router
             // Statistiques des transactions de paiement
             router
               .get('/stats', [PaymentTransactionController, 'getStats'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['payment.stats']))
 
             // Récupérer les transactions par demande d'immatriculation
             router
@@ -311,7 +311,7 @@ router
                 PaymentTransactionController,
                 'getByRegistrationRequest',
               ])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['payment.view']))
 
             /*
             |--------------------------------------------------------------------------
@@ -322,22 +322,22 @@ router
             // Liste paginée avec filtres et recherche
             router
               .get('/', [PaymentTransactionController, 'index'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['payment.list']))
 
             // Créer et initier une nouvelle transaction de paiement
             router
               .post('/', [PaymentTransactionController, 'store'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['payment.create']))
 
             // Détails d'une transaction spécifique
             router
               .get('/:id', [PaymentTransactionController, 'show'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['payment.view']))
 
             // Vérifier manuellement le statut d'une transaction
             router
               .post('/:id/check-status', [PaymentTransactionController, 'checkStatus'])
-              .middleware(middleware.permission(['taxpayer.search']))
+              .middleware(middleware.permission(['payment.check']))
           })
           .prefix('/admin/payment-transactions')
 
