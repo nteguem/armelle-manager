@@ -6,6 +6,7 @@ import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
 import { inject } from '@adonisjs/core'
 import { DateTime } from 'luxon'
+import { assignRoleToUserValidator, removeRoleFromUserValidator } from '#validators/role_validator'
 
 @inject()
 export default class UsersController extends BaseController {
@@ -58,6 +59,7 @@ export default class UsersController extends BaseController {
         }
       )
     } catch (error) {
+      console.error('Error fetching users:', error)
       return this.error(ctx, 'Failed to fetch users', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
     }
   }
@@ -111,6 +113,7 @@ export default class UsersController extends BaseController {
         updated_at: user.updatedAt,
       })
     } catch (error) {
+      console.error('Error fetching user:', error)
       return this.notFound(ctx, 'User not found')
     }
   }
@@ -124,8 +127,6 @@ export default class UsersController extends BaseController {
 
     try {
       const user = await User.findOrFail(params.userId)
-      await user.load('roles')
-
       const activeRoles = await user.getActiveRoles()
 
       return this.success(ctx, {
@@ -144,6 +145,7 @@ export default class UsersController extends BaseController {
         roles_count: activeRoles.length,
       })
     } catch (error) {
+      console.error('Error fetching user roles:', error)
       return this.notFound(ctx, 'User not found')
     }
   }
@@ -155,25 +157,14 @@ export default class UsersController extends BaseController {
   async assignRole(ctx: HttpContext) {
     const { request, params, user: currentUser } = ctx
     const userId = params.userId
-    const { roleId, expiresAt } = request.only(['roleId', 'expiresAt'])
+    const data = await request.validateUsing(assignRoleToUserValidator)
 
     try {
-      // Validate user exists
       const user = await User.findOrFail(userId)
-      // Validate role exists
-      const role = await Role.findOrFail(roleId)
-      // Parse expiration date if provided
-      const expirationDate = expiresAt ? DateTime.fromISO(expiresAt) : undefined
-      if (expirationDate && expirationDate < DateTime.now()) {
-        return this.error(
-          ctx,
-          'Expiration date must be in the future',
-          ErrorCodes.VALIDATION_ERROR,
-          400
-        )
-      }
+      const role = await Role.findOrFail(data.roleId)
 
-      // Check if role is already assigned
+      const expirationDate = data.expiresAt ? DateTime.fromJSDate(data.expiresAt) : undefined
+
       const existingAssignment = await user
         .related('roles')
         .query()
@@ -189,7 +180,6 @@ export default class UsersController extends BaseController {
         )
       }
 
-      // Assign role
       await this.permissionService.assignRoleToUser(
         user.id,
         role.id,
@@ -228,11 +218,9 @@ export default class UsersController extends BaseController {
     const roleId = params.roleId
 
     try {
-      // Validate user and role exist
       const user = await User.findOrFail(userId)
       const role = await Role.findOrFail(roleId)
 
-      // Check if role is assigned
       const assignment = await user.related('roles').query().where('role_id', role.id).first()
 
       if (!assignment) {
@@ -244,7 +232,6 @@ export default class UsersController extends BaseController {
         )
       }
 
-      // Prevent removing system roles from admin users (optional security)
       if (['super_admin', 'admin'].includes(role.name) && user.id === currentUser!.id) {
         return this.error(
           ctx,
@@ -254,7 +241,6 @@ export default class UsersController extends BaseController {
         )
       }
 
-      // Remove role
       await this.permissionService.removeRoleFromUser(user.id, role.id)
 
       return this.success(
@@ -268,6 +254,7 @@ export default class UsersController extends BaseController {
         'Role removed successfully'
       )
     } catch (error) {
+      console.error('Error removing role:', error)
       return this.notFound(ctx, 'User or role not found')
     }
   }

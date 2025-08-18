@@ -84,9 +84,39 @@ export default class extends BaseSeeder {
       ],
       taxpayer: [
         {
+          name: 'taxpayer.list',
+          displayName: 'Lister les contribuables',
+          description: 'Voir la liste des contribuables',
+        },
+        {
+          name: 'taxpayer.view',
+          displayName: 'Voir un contribuable',
+          description: "Voir les détails d'un contribuable",
+        },
+        {
+          name: 'taxpayer.create',
+          displayName: 'Créer un contribuable',
+          description: 'Créer de nouveaux contribuables',
+        },
+        {
+          name: 'taxpayer.update',
+          displayName: 'Modifier un contribuable',
+          description: 'Modifier les informations des contribuables',
+        },
+        {
+          name: 'taxpayer.delete',
+          displayName: 'Supprimer un contribuable',
+          description: 'Supprimer des contribuables',
+        },
+        {
           name: 'taxpayer.search',
           displayName: 'Rechercher DGI',
           description: 'Effectuer des recherches dans la base DGI',
+        },
+        {
+          name: 'taxpayer.sync',
+          displayName: 'Synchroniser DGI',
+          description: 'Synchroniser avec la DGI',
         },
         {
           name: 'taxpayer.export',
@@ -102,6 +132,92 @@ export default class extends BaseSeeder {
           name: 'taxpayer.view_history',
           displayName: 'Historique DGI',
           description: "Voir l'historique des recherches",
+        },
+      ],
+      registration: [
+        {
+          name: 'registration.list',
+          displayName: 'Lister les demandes',
+          description: "Voir la liste des demandes d'immatriculation",
+        },
+        {
+          name: 'registration.view',
+          displayName: 'Voir une demande',
+          description: "Voir les détails d'une demande d'immatriculation",
+        },
+        {
+          name: 'registration.create',
+          displayName: 'Créer une demande',
+          description: "Créer de nouvelles demandes d'immatriculation",
+        },
+        {
+          name: 'registration.update',
+          displayName: 'Modifier une demande',
+          description: "Modifier les demandes d'immatriculation",
+        },
+        {
+          name: 'registration.process',
+          displayName: 'Traiter les demandes',
+          description: "Traiter ou rejeter les demandes d'immatriculation",
+        },
+        {
+          name: 'registration.stats',
+          displayName: 'Statistiques demandes',
+          description: "Voir les statistiques des demandes d'immatriculation",
+        },
+      ],
+      payment: [
+        {
+          name: 'payment.list',
+          displayName: 'Lister les transactions',
+          description: 'Voir la liste des transactions de paiement',
+        },
+        {
+          name: 'payment.view',
+          displayName: 'Voir une transaction',
+          description: "Voir les détails d'une transaction",
+        },
+        {
+          name: 'payment.create',
+          displayName: 'Créer une transaction',
+          description: 'Créer de nouvelles transactions de paiement',
+        },
+        {
+          name: 'payment.check',
+          displayName: 'Vérifier le statut',
+          description: 'Vérifier le statut des transactions',
+        },
+        {
+          name: 'payment.stats',
+          displayName: 'Statistiques paiements',
+          description: 'Voir les statistiques des paiements',
+        },
+      ],
+      botuser: [
+        {
+          name: 'botuser.list',
+          displayName: 'Lister les bot users',
+          description: 'Voir la liste des utilisateurs du bot',
+        },
+        {
+          name: 'botuser.view',
+          displayName: 'Voir un bot user',
+          description: "Voir les détails d'un utilisateur du bot",
+        },
+        {
+          name: 'botuser.update',
+          displayName: 'Modifier un bot user',
+          description: 'Modifier les utilisateurs du bot',
+        },
+        {
+          name: 'botuser.delete',
+          displayName: 'Supprimer un bot user',
+          description: 'Supprimer des utilisateurs du bot',
+        },
+        {
+          name: 'botuser.stats',
+          displayName: 'Statistiques bot users',
+          description: 'Voir les statistiques des utilisateurs du bot',
         },
       ],
       reports: [
@@ -141,6 +257,11 @@ export default class extends BaseSeeder {
           name: 'admin.maintenance_mode',
           displayName: 'Mode maintenance',
           description: 'Activer/désactiver le mode maintenance',
+        },
+        {
+          name: 'admin.*',
+          displayName: 'Administration complète',
+          description: 'Accès complet à toutes les fonctions admin',
         },
       ],
       profile: [
@@ -186,6 +307,9 @@ export default class extends BaseSeeder {
         'roles.*',
         'permissions.*',
         'taxpayer.*',
+        'registration.*',
+        'payment.*',
+        'botuser.*',
         'reports.*',
         'admin.*',
         'profile.*',
@@ -198,6 +322,9 @@ export default class extends BaseSeeder {
         'roles.list',
         'roles.view',
         'taxpayer.*',
+        'registration.*',
+        'payment.*',
+        'botuser.*',
         'reports.*',
         'profile.*',
       ],
@@ -205,6 +332,14 @@ export default class extends BaseSeeder {
         'taxpayer.search',
         'taxpayer.export',
         'taxpayer.view_history',
+        'registration.list',
+        'registration.view',
+        'registration.create',
+        'payment.list',
+        'payment.view',
+        'payment.create',
+        'botuser.list',
+        'botuser.view',
         'reports.view',
         'reports.generate',
         'profile.*',
@@ -214,6 +349,12 @@ export default class extends BaseSeeder {
         'users.view',
         'roles.list',
         'taxpayer.search',
+        'registration.list',
+        'registration.view',
+        'payment.list',
+        'payment.view',
+        'botuser.list',
+        'botuser.view',
         'reports.view',
         'profile.view_own',
       ],
@@ -236,7 +377,6 @@ export default class extends BaseSeeder {
           if (permPattern.endsWith('.*')) {
             // Wildcard: get all permissions for this module
             const module = permPattern.slice(0, -2)
-            // const module = permPattern.replace('.*', '')
             const modulePerms = allPermissions.filter((p) => p.module === module)
             permissionIds.push(...modulePerms.map((p) => p.id))
           } else {
@@ -246,6 +386,9 @@ export default class extends BaseSeeder {
           }
         }
       }
+
+      // Remove duplicates
+      permissionIds = [...new Set(permissionIds)]
 
       // Sync permissions (replace existing)
       await role.related('permissions').sync(permissionIds)

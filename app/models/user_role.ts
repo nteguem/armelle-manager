@@ -5,36 +5,40 @@ import User from '#models/user'
 import Role from '#models/role'
 
 export default class UserRole extends BaseModel {
-  /**
-   * Indique que la clé primaire n'est pas une colonne `id`
-   */
-  public static selfAssignPrimaryKey = true
+  public static table = 'user_roles'
 
-  @column({ isPrimary: true })
+  // Pas de primaryKey défini = Lucid utilisera la contrainte composite de la DB
+  public static selfAssignPrimaryKey = false
+
+  @column({ isPrimary: true, columnName: 'user_id' })
   declare userId: number
 
-  @column({ isPrimary: true })
+  @column({ isPrimary: true, columnName: 'role_id' })
   declare roleId: number
 
-  @column()
-  declare assigned_by: number | null
+  @column({ columnName: 'assigned_by' })
+  declare assignedBy: number | null
 
-  @column.dateTime()
-  declare assigned_at: DateTime
+  @column.dateTime({ columnName: 'assigned_at' })
+  declare assignedAt: DateTime
 
-  @column.dateTime()
-  declare expires_at: DateTime | null
+  @column.dateTime({ columnName: 'expires_at' })
+  declare expiresAt: DateTime | null
 
   /**
    * Relation vers l'utilisateur concerné
    */
-  @belongsTo(() => User)
+  @belongsTo(() => User, {
+    foreignKey: 'userId',
+  })
   declare user: BelongsTo<typeof User>
 
   /**
    * Relation vers le rôle attribué
    */
-  @belongsTo(() => Role)
+  @belongsTo(() => Role, {
+    foreignKey: 'roleId',
+  })
   declare role: BelongsTo<typeof Role>
 
   /**
@@ -49,8 +53,8 @@ export default class UserRole extends BaseModel {
    * Vérifie si l'attribution du rôle est expirée
    */
   get isExpired(): boolean {
-    if (!this.expires_at) return false
-    return DateTime.now() > this.expires_at
+    if (!this.expiresAt) return false
+    return DateTime.now() > this.expiresAt
   }
 
   /**
@@ -58,5 +62,28 @@ export default class UserRole extends BaseModel {
    */
   get isActive(): boolean {
     return !this.isExpired
+  }
+
+  /**
+   * Scope pour obtenir les attributions actives
+   */
+  public static activeAssignments = (query: any) => {
+    return query.where((subQuery: any) => {
+      subQuery.whereNull('expires_at').orWhere('expires_at', '>', DateTime.now().toSQL())
+    })
+  }
+
+  /**
+   * Scope pour obtenir les attributions expirées
+   */
+  public static expiredAssignments = (query: any) => {
+    return query.whereNotNull('expires_at').where('expires_at', '<=', DateTime.now().toSQL())
+  }
+
+  /**
+   * Méthode helper pour trouver une attribution spécifique
+   */
+  public static async findByUserAndRole(userId: number, roleId: number): Promise<UserRole | null> {
+    return await this.query().where('user_id', userId).where('role_id', roleId).first()
   }
 }

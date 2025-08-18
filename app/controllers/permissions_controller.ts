@@ -6,6 +6,11 @@ import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
 import { inject } from '@adonisjs/core'
 import { DateTime } from 'luxon'
+import {
+  grantPermissionToUserValidator,
+  checkUserPermissionValidator,
+  permissionSearchValidator,
+} from '#validators/permission_validator'
 
 @inject()
 export default class PermissionsController extends BaseController {
@@ -19,12 +24,11 @@ export default class PermissionsController extends BaseController {
    */
   async index(ctx: HttpContext) {
     const { request } = ctx
-    const module = request.input('module')
-    const grouped = request.input('grouped', false)
+    const data = await request.validateUsing(permissionSearchValidator)
+    const { module, grouped = false, page = 1, limit = 20 } = data
 
     try {
       if (grouped) {
-        // Return permissions grouped by module
         const groupedPermissions = await Permission.getGroupedByModule()
 
         const formattedGroups = Object.entries(groupedPermissions).map(
@@ -46,28 +50,33 @@ export default class PermissionsController extends BaseController {
         })
       }
 
-      // Regular list with optional module filter
       const query = Permission.query().orderBy('module', 'asc').orderBy('name', 'asc')
 
       if (module) {
         query.where('module', module)
       }
 
-      const permissions = await query
+      const paginatedResult = await query.paginate(page, limit)
+      const permissions = paginatedResult.all()
 
-      return this.success(ctx, {
-        permissions: permissions.map((p) => ({
-          id: p.id,
-          name: p.name,
-          display_name: p.displayName,
-          description: p.description,
-          module: p.module,
-          created_at: p.createdAt,
-          updated_at: p.updatedAt,
-        })),
-        total: permissions.length,
+      const formattedPermissions = permissions.map((p) => ({
+        id: p.id,
+        name: p.name,
+        display_name: p.displayName,
+        description: p.description,
+        module: p.module,
+        created_at: p.createdAt,
+        updated_at: p.updatedAt,
+      }))
+
+      return this.paginated(ctx, formattedPermissions, {
+        current_page: paginatedResult.currentPage,
+        total_pages: paginatedResult.lastPage,
+        per_page: paginatedResult.perPage,
+        total_items: paginatedResult.total,
       })
     } catch (error) {
+      console.error('Error fetching permissions:', error)
       return this.error(ctx, 'Failed to fetch permissions', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
     }
   }
@@ -85,6 +94,7 @@ export default class PermissionsController extends BaseController {
         total: modules.length,
       })
     } catch (error) {
+      console.error('Error fetching modules:', error)
       return this.error(ctx, 'Failed to fetch modules', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
     }
   }
@@ -94,25 +104,24 @@ export default class PermissionsController extends BaseController {
    * GET /api/v1/users/:userId/permissions
    */
   async userPermissions(ctx: HttpContext) {
-    const { params } = ctx
+    const { params, request } = ctx
+    const page = request.input('page', 1)
+    const limit = request.input('limit', 20)
+    const source = request.input('source')
 
     try {
       const user = await User.findOrFail(params.userId)
 
-      // Get all permissions
       const permissions = await this.permissionService.getUserPermissions(user.id)
 
-      // Load user roles and direct permissions for details
       await user.load('roles', (query) => {
         query.preload('permissions')
       })
       await user.load('permissions')
 
-      // Separate permissions by source
       const rolePermissions: any[] = []
       const directPermissions: any[] = []
 
-      // Permissions from roles
       for (const role of user.roles) {
         for (const permission of role.permissions) {
           rolePermissions.push({
@@ -130,7 +139,6 @@ export default class PermissionsController extends BaseController {
         }
       }
 
-      // Direct permissions
       for (const permission of user.permissions) {
         directPermissions.push({
           id: permission.id,
@@ -143,18 +151,40 @@ export default class PermissionsController extends BaseController {
         })
       }
 
-      return this.success(ctx, {
-        user: {
-          id: user.id,
-          username: user.username,
-          email: user.email,
+      let allPermissionsWithSource = [...rolePermissions, ...directPermissions]
+      if (source) {
+        allPermissionsWithSource = allPermissionsWithSource.filter((p) => p.source === source)
+      }
+
+      const start = (page - 1) * limit
+      const paginatedPermissions = allPermissionsWithSource.slice(start, start + limit)
+
+      const requestId = this.getRequestId(ctx)
+
+      return ctx.response.ok({
+        success: true,
+        data: {
+          user: {
+            id: user.id,
+            username: user.username,
+            email: user.email,
+          },
+          all_permissions: permissions,
+          permissions_count: permissions.length,
+          role_permissions_count: rolePermissions.length,
+          direct_permissions_count: directPermissions.length,
+          permissions: paginatedPermissions,
         },
-        all_permissions: permissions,
-        permissions_count: permissions.length,
-        role_permissions: rolePermissions,
-        direct_permissions: directPermissions,
+        pagination: {
+          current_page: page,
+          total_pages: Math.ceil(allPermissionsWithSource.length / limit),
+          per_page: limit,
+          total_items: allPermissionsWithSource.length,
+        },
+        request_id: requestId,
       })
     } catch (error) {
+      console.error('Error fetching user permissions:', error)
       return this.notFound(ctx, 'User not found')
     }
   }
@@ -166,27 +196,15 @@ export default class PermissionsController extends BaseController {
   async grantToUser(ctx: HttpContext) {
     const { request, params, user: currentUser } = ctx
     const userId = params.userId
-    const { permissionId, expiresAt } = request.only(['permissionId', 'expiresAt'])
+    const data = await request.validateUsing(grantPermissionToUserValidator)
 
     try {
-      // Validate user exists
       const user = await User.findOrFail(userId)
+      const permission = await Permission.findOrFail(data.permissionId)
 
-      // Validate permission exists
-      const permission = await Permission.findOrFail(permissionId)
+      //  Gérer l'objet Date du validator
+      const expirationDate = data.expiresAt ? DateTime.fromJSDate(data.expiresAt) : undefined
 
-      // Parse expiration date if provided
-      const expirationDate = expiresAt ? DateTime.fromISO(expiresAt) : undefined
-      if (expirationDate && expirationDate < DateTime.now()) {
-        return this.error(
-          ctx,
-          'Expiration date must be in the future',
-          ErrorCodes.VALIDATION_ERROR,
-          400
-        )
-      }
-
-      // Grant permission
       await this.permissionService.grantPermissionToUser(
         user.id,
         permission.id,
@@ -210,6 +228,7 @@ export default class PermissionsController extends BaseController {
         'Permission granted successfully'
       )
     } catch (error) {
+      console.error('Error granting permission:', error)
       return this.notFound(ctx, 'User or permission not found')
     }
   }
@@ -224,15 +243,14 @@ export default class PermissionsController extends BaseController {
     const permissionId = params.permissionId
 
     try {
-      // Validate user and permission exist
       await User.findOrFail(userId)
       await Permission.findOrFail(permissionId)
 
-      // Revoke permission
       await this.permissionService.revokePermissionFromUser(userId, permissionId)
 
       return this.success(ctx, null, 'Permission revoked successfully')
     } catch (error) {
+      console.error('Error revoking permission:', error)
       return this.notFound(ctx, 'User or permission not found')
     }
   }
@@ -244,24 +262,19 @@ export default class PermissionsController extends BaseController {
   async checkUserPermission(ctx: HttpContext) {
     const { request, params } = ctx
     const userId = params.userId
-    const permissionName = request.input('permission')
-
-    if (!permissionName) {
-      return this.validationError(ctx, {
-        permission: ['Permission name is required'],
-      })
-    }
+    const data = await request.validateUsing(checkUserPermissionValidator)
 
     try {
       const user = await User.findOrFail(userId)
-      const hasPermission = await this.permissionService.userHasPermission(user.id, permissionName)
+      const hasPermission = await this.permissionService.userHasPermission(user.id, data.permission)
 
       return this.success(ctx, {
         user_id: user.id,
-        permission: permissionName,
+        permission: data.permission,
         has_permission: hasPermission,
       })
     } catch (error) {
+      console.error('Error checking user permission:', error)
       return this.notFound(ctx, 'User not found')
     }
   }
@@ -280,26 +293,24 @@ export default class PermissionsController extends BaseController {
       const permission = await Permission.findByOrFail('name', permissionName)
       const users = await this.permissionService.getUsersWithPermission(permission.name)
 
-      // Manual pagination
       const start = (page - 1) * limit
       const paginatedUsers = users.slice(start, start + limit)
 
-      return this.paginated(
-        ctx,
-        paginatedUsers.map((user) => ({
-          id: user.id,
-          username: user.username,
-          email: user.email,
-          nellys_coin_id: user.nellysCoinId,
-        })),
-        {
-          current_page: page,
-          total_pages: Math.ceil(users.length / limit),
-          per_page: limit,
-          total_items: users.length,
-        }
-      )
+      const formattedUsers = paginatedUsers.map((user) => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        nellys_coin_id: user.nellysCoinId,
+      }))
+
+      return this.paginated(ctx, formattedUsers, {
+        current_page: page,
+        total_pages: Math.ceil(users.length / limit),
+        per_page: limit,
+        total_items: users.length,
+      })
     } catch (error) {
+      console.error('Error fetching users with permission:', error)
       return this.notFound(ctx, 'Permission not found')
     }
   }

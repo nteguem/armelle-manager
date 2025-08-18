@@ -13,8 +13,49 @@ import {
 
 @inject()
 export default class RolesController extends BaseController {
+  // System roles that cannot be modified/deleted
+  private readonly SYSTEM_ROLES = ['super_admin', 'admin', 'user', 'manager', 'operator', 'viewer']
+
   constructor(private permissionService: PermissionService) {
     super()
+  }
+
+  /**
+   * Format permission response (shared logic)
+   */
+  private formatPermission(permission: Permission) {
+    return {
+      id: permission.id,
+      name: permission.name,
+      display_name: permission.displayName,
+      module: permission.module,
+    }
+  }
+
+  /**
+   * Format role response (shared logic)
+   */
+  private formatRoleResponse(role: Role, includePermissions: boolean = true) {
+    return {
+      id: role.id,
+      name: role.name,
+      display_name: role.displayName,
+      description: role.description,
+      is_active: role.isActive,
+      permissions:
+        includePermissions && role.permissions
+          ? role.permissions.map((p) => this.formatPermission(p))
+          : undefined,
+      created_at: role.createdAt,
+      updated_at: role.updatedAt,
+    }
+  }
+
+  /**
+   * Check if role is a system role
+   */
+  private isSystemRole(roleName: string): boolean {
+    return this.SYSTEM_ROLES.includes(roleName)
   }
 
   /**
@@ -38,23 +79,7 @@ export default class RolesController extends BaseController {
 
       return this.paginated(
         ctx,
-        roles.all().map((role) => ({
-          id: role.id,
-          name: role.name,
-          display_name: role.displayName,
-          description: role.description,
-          is_active: role.isActive,
-          permissions: includePermissions
-            ? role.permissions?.map((p) => ({
-                id: p.id,
-                name: p.name,
-                display_name: p.displayName,
-                module: p.module,
-              }))
-            : undefined,
-          created_at: role.createdAt,
-          updated_at: role.updatedAt,
-        })),
+        roles.all().map((role) => this.formatRoleResponse(role, includePermissions)),
         {
           current_page: roles.currentPage,
           total_pages: roles.lastPage,
@@ -83,31 +108,21 @@ export default class RolesController extends BaseController {
         })
         .firstOrFail()
 
+      const usersCount = await role
+        .related('users')
+        .query()
+        .count('* as total')
+        .first()
+        .then((r) => r?.$extras.total || 0)
+
       return this.success(ctx, {
-        id: role.id,
-        name: role.name,
-        display_name: role.displayName,
-        description: role.description,
-        is_active: role.isActive,
-        permissions: role.permissions.map((p) => ({
-          id: p.id,
-          name: p.name,
-          display_name: p.displayName,
-          module: p.module,
-        })),
-        users_count: await role
-          .related('users')
-          .query()
-          .count('* as total')
-          .first()
-          .then((r) => r?.$extras.total || 0),
+        ...this.formatRoleResponse(role, true),
+        users_count: usersCount,
         sample_users: role.users.map((u) => ({
           id: u.id,
           username: u.username,
           email: u.email,
         })),
-        created_at: role.createdAt,
-        updated_at: role.updatedAt,
       })
     } catch (error) {
       return this.notFound(ctx, 'Role not found')
@@ -119,7 +134,7 @@ export default class RolesController extends BaseController {
    * POST /api/v1/roles
    */
   async store(ctx: HttpContext) {
-    const { request, user } = ctx
+    const { request } = ctx
     const data = await request.validateUsing(createRoleValidator)
 
     try {
@@ -143,23 +158,7 @@ export default class RolesController extends BaseController {
         await role.load('permissions')
       }
 
-      return this.success(
-        ctx,
-        {
-          id: role.id,
-          name: role.name,
-          display_name: role.displayName,
-          description: role.description,
-          is_active: role.isActive,
-          permissions:
-            role.permissions?.map((p) => ({
-              id: p.id,
-              name: p.name,
-              display_name: p.displayName,
-            })) || [],
-        },
-        'Role created successfully'
-      )
+      return this.success(ctx, this.formatRoleResponse(role, true), 'Role created successfully')
     } catch (error) {
       return this.error(ctx, 'Failed to create role', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
     }
@@ -177,8 +176,8 @@ export default class RolesController extends BaseController {
       const role = await Role.findOrFail(params.id)
 
       // Prevent updating system roles
-      if (['super_admin', 'admin', 'user'].includes(role.name)) {
-        return this.error(ctx, 'Cannot modify system roles', ErrorCodes.OPERATION_NOT_ALLOWED, 403)
+      if (this.isSystemRole(role.name)) {
+        return this.forbidden(ctx, 'Cannot modify system roles', ErrorCodes.OPERATION_NOT_ALLOWED)
       }
 
       // Update role
@@ -196,23 +195,7 @@ export default class RolesController extends BaseController {
         await role.load('permissions')
       }
 
-      return this.success(
-        ctx,
-        {
-          id: role.id,
-          name: role.name,
-          display_name: role.displayName,
-          description: role.description,
-          is_active: role.isActive,
-          permissions:
-            role.permissions?.map((p) => ({
-              id: p.id,
-              name: p.name,
-              display_name: p.displayName,
-            })) || [],
-        },
-        'Role updated successfully'
-      )
+      return this.success(ctx, this.formatRoleResponse(role, true), 'Role updated successfully')
     } catch (error) {
       return this.notFound(ctx, 'Role not found')
     }
@@ -229,19 +212,21 @@ export default class RolesController extends BaseController {
       const role = await Role.findOrFail(params.id)
 
       // Prevent deleting system roles
-      if (['super_admin', 'admin', 'user', 'manager', 'operator', 'viewer'].includes(role.name)) {
-        return this.error(ctx, 'Cannot delete system roles', ErrorCodes.OPERATION_NOT_ALLOWED, 403)
+      if (this.isSystemRole(role.name)) {
+        return this.forbidden(ctx, 'Cannot delete system roles', ErrorCodes.OPERATION_NOT_ALLOWED)
       }
 
       // Check if role has users
       const usersCount = await role.related('users').query().count('* as total').first()
-      if (!usersCount || usersCount?.$extras.total > 0) {
+      const totalUsers = usersCount?.$extras.total || 0
+
+      if (totalUsers > 0) {
         return this.error(
           ctx,
           'Cannot delete role with assigned users',
           ErrorCodes.OPERATION_NOT_ALLOWED,
           400,
-          { users_count: usersCount?.$extras.total || 0 }
+          { users_count: totalUsers }
         )
       }
 
@@ -258,7 +243,7 @@ export default class RolesController extends BaseController {
    * POST /api/v1/roles/:id/permissions
    */
   async assignPermissions(ctx: HttpContext) {
-    const { request, params, user } = ctx
+    const { request, params } = ctx
     const data = await request.validateUsing(assignPermissionsValidator)
 
     try {
@@ -280,15 +265,61 @@ export default class RolesController extends BaseController {
           id: role.id,
           name: role.name,
           display_name: role.displayName,
-          permissions: role.permissions.map((p) => ({
-            id: p.id,
-            name: p.name,
-            display_name: p.displayName,
-            module: p.module,
-          })),
+          permissions: role.permissions.map((p) => this.formatPermission(p)),
         },
         'Permissions assigned successfully'
       )
+    } catch (error) {
+      return this.notFound(ctx, 'Role not found')
+    }
+  }
+
+  /**
+   * Get users assigned to a role (with pagination)
+   * GET /api/v1/roles/:id/users
+   */
+  async getRoleUsers(ctx: HttpContext) {
+    const { params, request } = ctx
+    const page = request.input('page', 1)
+    const limit = request.input('limit', 20)
+
+    try {
+      const role = await Role.findOrFail(params.id)
+
+      const usersQuery = role.related('users').query().orderBy('username', 'asc')
+      const paginatedUsers = await usersQuery.paginate(page, limit)
+
+      const formattedUsers = paginatedUsers.all().map((user) => ({
+        id: user.id,
+        username: user.username,
+        email: user.email,
+        nellys_coin_id: user.nellysCoinId,
+        assigned_at: user.$extras.pivot?.assigned_at,
+        expires_at: user.$extras.pivot?.expires_at,
+      }))
+
+      // Use consistent pagination structure
+      const requestId = this.getRequestId(ctx)
+
+      return ctx.response.ok({
+        success: true,
+        data: {
+          role: {
+            id: role.id,
+            name: role.name,
+            display_name: role.displayName,
+          },
+          users: formattedUsers,
+          users_count: paginatedUsers.total,
+        },
+        pagination: {
+          current_page: paginatedUsers.currentPage,
+          total_pages: paginatedUsers.lastPage,
+          per_page: paginatedUsers.perPage,
+          total_items: paginatedUsers.total,
+        },
+        request_id: requestId,
+      })
     } catch (error) {
       return this.notFound(ctx, 'Role not found')
     }

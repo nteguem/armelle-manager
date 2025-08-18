@@ -103,6 +103,11 @@ router
             router
               .post('/:id/permissions', [RolesController, 'assignPermissions'])
               .middleware(middleware.permission(['roles.assign_permissions']))
+
+            // AJOUT: Route pour obtenir les utilisateurs d'un rôle
+            router
+              .get('/:id/users', [RolesController, 'getRoleUsers'])
+              .middleware(middleware.permission(['roles.view']))
           })
           .prefix('/roles')
 
@@ -113,14 +118,17 @@ router
         */
         router
           .group(() => {
+            // AJOUT: Liste des permissions (manquait)
             router
               .get('/', [PermissionsController, 'index'])
               .middleware(middleware.permission(['permissions.list']))
 
+            // AJOUT: Modules disponibles (manquait)
             router
               .get('/modules', [PermissionsController, 'modules'])
               .middleware(middleware.permission(['permissions.list']))
 
+            // AJOUT: Utilisateurs avec une permission (manquait)
             router
               .get('/:name/users', [PermissionsController, 'getUsersWithPermission'])
               .middleware(middleware.permission(['permissions.list']))

@@ -1,5 +1,6 @@
 import MfaSession from '#models/mfa_session'
 import User from '#models/user'
+import Role from '#models/role'
 import { DateTime } from 'luxon'
 import type { LoginResponse } from '../types/nellys_coin_types.js'
 
@@ -45,6 +46,10 @@ export default class AuthService {
     const email = userData.emailAddress
     const canAccessPanel = userData.customerType?.description === 'admin' || false
 
+    // Check if user already exists
+    const existingUser = await User.findBy('nellys_coin_id', String(userId))
+    const isNewUser = !existingUser
+
     const user = await User.updateOrCreate(
       { nellysCoinId: String(userId) },
       {
@@ -63,6 +68,21 @@ export default class AuthService {
       }
     )
 
+    // Assign default role if it's a new user
+    if (isNewUser) {
+      try {
+        const defaultRole = await Role.findBy('name', 'user')
+        if (defaultRole) {
+          await user.related('roles').attach([defaultRole.id])
+          console.log(`[AUTH_SERVICE] Assigned default role 'user' to new user: ${user.username}`)
+        } else {
+          console.warn(`[AUTH_SERVICE] Default role 'user' not found`)
+        }
+      } catch (error) {
+        console.error(`[AUTH_SERVICE] Failed to assign default role:`, error)
+      }
+    }
+
     return user
   }
 
@@ -70,10 +90,10 @@ export default class AuthService {
    * Create MFA session
    */
   async createMfaSession(loginResponse: LoginResponse): Promise<MfaSession> {
-    const mfaData = loginResponse.data.mfaData || []
+    const mfaData = loginResponse.data.mfaData
 
-    // Extract the first MFA method ID if available
-    const mfaId = Array.isArray(mfaData) && mfaData[0]?.id ? mfaData[0].id.toString() : null
+    // Correction: mfaData est un objet unique, pas un tableau
+    const mfaId = mfaData?.id ? mfaData.id.toString() : null
 
     const session = await MfaSession.create({
       loginReference: loginResponse.data.loginReference!,
@@ -155,13 +175,13 @@ export default class AuthService {
    */
   async cleanExpiredSessions(): Promise<void> {
     // Clean expired MFA sessions
-    const expiredMfaSessions = await MfaSession.query()
+    await MfaSession.query()
       .where('expiresAt', '<', DateTime.now().toSQL())
       .orWhere('status', 'expired')
       .delete()
 
     // Clean expired tokens
-    const expiredTokens = await User.query()
+    await User.query()
       .whereNotNull('tokenExpiresAt')
       .where('tokenExpiresAt', '<', DateTime.now().toSQL())
       .update({
