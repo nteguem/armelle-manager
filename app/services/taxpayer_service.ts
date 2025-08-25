@@ -167,8 +167,12 @@ export default class TaxpayerService {
       query = query.whereILike('etat', `%${filters.etat}%`)
     }
 
+    // Filtrage amélioré pour les centres
     if (filters.centre) {
-      query = query.whereILike('centre', `%${filters.centre}%`)
+      const centreName = filters.centre.trim()
+      query = query.where((builder) => {
+        builder.whereILike('centre', `%${centreName}%`)
+      })
     }
 
     if (filters.regime) {
@@ -299,6 +303,10 @@ export default class TaxpayerService {
     return await taxpayer.getStats()
   }
 
+  /**
+   * Méthode simplifiée pour récupérer tous les centres uniques
+   * sans la logique "Autres" complexe
+   */
   async getCentres(search: string = '', pagination: any = {}): Promise<any> {
     const page = pagination.page || 1
     const limit = Math.min(pagination.limit || 50, 100)
@@ -322,38 +330,57 @@ export default class TaxpayerService {
     query = query.orderBy('taxpayers_count', 'desc')
 
     const offset = (page - 1) * limit
+
+    // Compter le total pour la pagination
     const totalQuery = query.clone()
     const totalRows = await totalQuery
     const total = totalRows.length
 
     const centres = await query.offset(offset).limit(limit)
 
-    let finalCentres = [...centres]
-    if (!search.trim() && page === 1) {
-      const autresCount = await db
-        .from('taxpayers')
-        .count('* as total')
-        .where((builder) => {
-          builder.whereNull('centre').orWhere('centre', '').orWhere('centre', 'Autres')
-        })
-
-      finalCentres.unshift({
-        centre: 'Autres',
-        taxpayers_count: Number(autresCount[0].total || 0),
-        first_discovered: null,
-        last_seen: null,
-        is_default: true,
-      })
-    }
-
     return {
-      data: finalCentres,
+      data: centres,
       pagination: {
         current_page: page,
-        total_pages: Math.ceil((total + 1) / limit),
+        total_pages: Math.ceil(total / limit),
         per_page: limit,
-        total_items: total + 1,
+        total_items: total,
       },
+    }
+  }
+
+  /**
+   * Nouvelle méthode pour obtenir les statistiques générales des centres
+   * incluant les données nulles/vides si nécessaire
+   */
+  async getCentreStats(): Promise<any> {
+    const [centresWithData, centresEmpty] = await Promise.all([
+      // Centres avec des données
+      db
+        .from('taxpayers')
+        .select('centre', db.raw('COUNT(*) as count'))
+        .whereNotNull('centre')
+        .where('centre', '!=', '')
+        .groupBy('centre')
+        .orderBy('count', 'desc'),
+
+      // Centres vides ou nulls
+      db
+        .from('taxpayers')
+        .count('* as count')
+        .where((builder) => {
+          builder.whereNull('centre').orWhere('centre', '')
+        })
+        .first(),
+    ])
+
+    return {
+      centres_with_data: centresWithData,
+      centres_without_data: Number(centresEmpty?.count || 0),
+      total_centres: centresWithData.length,
+      total_taxpayers:
+        centresWithData.reduce((sum, centre) => sum + Number(centre.count), 0) +
+        Number(centresEmpty?.count || 0),
     }
   }
 

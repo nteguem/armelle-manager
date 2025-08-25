@@ -23,7 +23,7 @@ export default class TaxPayerController extends BaseController {
         'search',
         'type_contribuable',
         'etat',
-        'centre',
+        'centre', // Le filtre centre est maintenant simplifié
         'regime',
         'phone_number',
         'source',
@@ -354,6 +354,9 @@ export default class TaxPayerController extends BaseController {
     }
   }
 
+  /**
+   * Endpoint simplifié pour récupérer la liste des centres
+   */
   async getCentres(ctx: HttpContext) {
     try {
       const page = ctx.request.input('page', 1)
@@ -366,6 +369,25 @@ export default class TaxPayerController extends BaseController {
     } catch (error: any) {
       console.error('Error fetching centres:', error)
       return this.error(ctx, 'Failed to fetch centres', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Nouvel endpoint pour obtenir les statistiques des centres
+   */
+  async getCentreStats(ctx: HttpContext) {
+    try {
+      const stats = await this.taxpayerService.getCentreStats()
+
+      return this.success(ctx, stats, 'Centre statistics retrieved successfully')
+    } catch (error: any) {
+      console.error('Error fetching centre statistics:', error)
+      return this.error(
+        ctx,
+        'Failed to fetch centre statistics',
+        ErrorCodes.INTERNAL_SERVER_ERROR,
+        500
+      )
     }
   }
 }
