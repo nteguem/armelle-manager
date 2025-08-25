@@ -8,8 +8,24 @@ import BotUserTaxpayer from './bot_user_taxpayers.js'
 import UserTaxpayer from './user_taxpayers.js'
 import TaxRegistrationRequest from './tax_registration_request.js'
 
+/**
+ * Modèle Taxpayer - Gestion des contribuables
+ *
+ * @description Représente un contribuable dans le système avec toutes ses informations
+ * fiscales et ses relations avec les utilisateurs et bots.
+ *
+ * @features
+ * - Gestion des relations bot_users et admin users
+ * - Synchronisation avec les données DGI
+ * - Validation stricte des données obligatoires (centre)
+ * - Support des filtres multiples et recherches avancées
+ */
 export default class Taxpayer extends BaseModel {
   static table = 'taxpayers'
+
+  // ===============================================
+  // COLONNES PRINCIPALES
+  // ===============================================
 
   @column({ isPrimary: true })
   declare id: string
@@ -32,8 +48,9 @@ export default class Taxpayer extends BaseModel {
   @column()
   declare regime: string | null
 
+  /** Centre fiscal - OBLIGATOIRE depuis la migration */
   @column()
-  declare centre: string | null
+  declare centre: string
 
   @column()
   declare etat: string | null
@@ -47,6 +64,10 @@ export default class Taxpayer extends BaseModel {
   @column.date()
   declare dateNaissance: DateTime | null
 
+  // ===============================================
+  // MÉTADONNÉES DE CRÉATION ET AUDIT
+  // ===============================================
+
   @column()
   declare createdById: string
 
@@ -59,6 +80,10 @@ export default class Taxpayer extends BaseModel {
   @column()
   declare taxRegistrationRequestId: number | null
 
+  /**
+   * Données brutes provenant du scraping DGI
+   * Stockées en JSON pour conservation de l'historique
+   */
   @column({
     prepare: (value: Record<string, any> | null | undefined) => {
       if (value === null || value === undefined) {
@@ -69,8 +94,7 @@ export default class Taxpayer extends BaseModel {
       }
       try {
         return JSON.stringify(value)
-      } catch (error) {
-        console.error('Error stringifying dgiRawData:', error)
+      } catch {
         return '{}'
       }
     },
@@ -83,8 +107,7 @@ export default class Taxpayer extends BaseModel {
       }
       try {
         return JSON.parse(value)
-      } catch (error) {
-        console.error('Error parsing dgiRawData:', value, error)
+      } catch {
         return {}
       }
     },
@@ -99,6 +122,10 @@ export default class Taxpayer extends BaseModel {
 
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
+
+  // ===============================================
+  // RELATIONS
+  // ===============================================
 
   @belongsTo(() => BotUser, {
     foreignKey: 'createdById',
@@ -149,18 +176,34 @@ export default class Taxpayer extends BaseModel {
   @hasMany(() => UserTaxpayer, { foreignKey: 'taxpayerId' })
   declare userTaxpayers: HasMany<typeof UserTaxpayer>
 
+  // ===============================================
+  // MÉTHODES D'INSTANCE - ÉTAT ET VALIDATION
+  // ===============================================
+
+  /**
+   * Vérifie si le contribuable a été importé depuis une source externe
+   */
   public isImported(): boolean {
     return this.source === 'imported'
   }
 
+  /**
+   * Vérifie si le contribuable a été créé via la plateforme
+   */
   public isPlatformCreated(): boolean {
     return this.source === 'platform_created'
   }
 
+  /**
+   * Vérifie si le contribuable provient d'une demande d'enregistrement
+   */
   public isFromRegistrationRequest(): boolean {
     return this.source === 'platform_created' && this.taxRegistrationRequestId !== null
   }
 
+  /**
+   * Récupère le créateur du contribuable (BotUser ou Admin User)
+   */
   public async getCreator(): Promise<BotUser | User | null> {
     if (this.createdByType === 'bot_user') {
       return await BotUser.find(this.createdById)
@@ -168,23 +211,39 @@ export default class Taxpayer extends BaseModel {
     return await User.find(this.createdById)
   }
 
+  /**
+   * Détermine le type de contribuable à partir du NIU
+   * Règle: P = Personne Physique, autres = Personne Morale
+   */
   public static getTypeFromNIU(niu: string): TypeContribuable {
     const firstChar = niu.charAt(0).toUpperCase()
     return firstChar === 'P' ? 'personne_physique' : 'personne_morale'
   }
 
+  /**
+   * Vérifie si c'est une personne physique
+   */
   public isPersonnePhysique(): boolean {
     return this.typeContribuable === 'personne_physique'
   }
 
+  /**
+   * Vérifie si c'est une personne morale
+   */
   public isPersonneMorale(): boolean {
     return this.typeContribuable === 'personne_morale'
   }
 
+  /**
+   * Vérifie si le contribuable est actif
+   */
   public isActif(): boolean {
     return this.etat?.toLowerCase() === 'actif'
   }
 
+  /**
+   * Retourne le nom complet formaté selon le type de contribuable
+   */
   public getNomComplet(): string {
     if (this.isPersonnePhysique() && this.prenomSigle) {
       return `${this.prenomSigle} ${this.nomRaisonSociale}`
@@ -192,6 +251,9 @@ export default class Taxpayer extends BaseModel {
     return this.nomRaisonSociale
   }
 
+  /**
+   * Retourne le nom d'affichage optimisé pour l'interface utilisateur
+   */
   public getNomAffichage(): string {
     if (this.isPersonneMorale()) {
       return this.prenomSigle
@@ -201,11 +263,29 @@ export default class Taxpayer extends BaseModel {
     return this.getNomComplet()
   }
 
+  /**
+   * Met à jour le timestamp de la dernière vérification DGI
+   */
   public async updateDgiCheck(): Promise<void> {
     this.lastDgiCheck = DateTime.now()
     await this.save()
   }
 
+  // ===============================================
+  // MÉTHODES STATIQUES - CRÉATION ET MISE À JOUR
+  // ===============================================
+
+  /**
+   * Crée un nouveau contribuable à partir des données structurées
+   *
+   * @param data - Données du contribuable (centre obligatoire)
+   * @param creatorId - ID du créateur
+   * @param creatorType - Type de créateur ('bot_user' | 'admin')
+   * @param source - Source de création ('imported' | 'platform_created')
+   * @param taxRegistrationRequestId - ID de la demande d'enregistrement (optionnel)
+   * @returns Promise<Taxpayer> - Nouveau contribuable créé
+   * @throws Error si le centre n'est pas fourni ou vide
+   */
   public static async createFromData(
     data: TaxpayerData,
     creatorId: string,
@@ -213,24 +293,28 @@ export default class Taxpayer extends BaseModel {
     source: 'imported' | 'platform_created',
     taxRegistrationRequestId?: number
   ): Promise<Taxpayer> {
-    const typeContribuable = data.niu ? this.getTypeFromNIU(data.niu) : 'personne_physique'
+    // Validation stricte : Centre obligatoire
+    if (!data.centre || !data.centre.trim()) {
+      throw new Error('Centre is required and cannot be empty')
+    }
 
-    console.log('=== CREATE FROM DATA ===')
-    console.log('creatorId:', creatorId)
-    console.log('creatorType:', creatorType)
-    console.log('source:', source)
-    console.log('taxRegistrationRequestId:', taxRegistrationRequestId)
+    // Validation : Nom/Raison sociale obligatoire
+    if (!data.nomRaisonSociale || !data.nomRaisonSociale.trim()) {
+      throw new Error('Nom/Raison sociale is required and cannot be empty')
+    }
+
+    const typeContribuable = data.niu ? this.getTypeFromNIU(data.niu) : 'personne_physique'
 
     return await this.create({
       niu: data.niu || null,
-      nomRaisonSociale: data.nomRaisonSociale,
-      prenomSigle: data.prenomSigle || null,
-      numeroCniRc: data.numeroCniRc || null,
-      activite: data.activite || null,
-      regime: data.regime || null,
-      centre: data.centre || null,
-      etat: data.etat || null,
-      phoneNumber: data.phoneNumber || null,
+      nomRaisonSociale: data.nomRaisonSociale.trim(),
+      prenomSigle: data.prenomSigle?.trim() || null,
+      numeroCniRc: data.numeroCniRc?.trim() || null,
+      activite: data.activite?.trim() || null,
+      regime: data.regime?.trim() || null,
+      centre: data.centre.trim(), // Garantie que centre est valide
+      etat: data.etat?.trim() || null,
+      phoneNumber: data.phoneNumber?.trim() || null,
       dateNaissance: data.dateNaissance ? DateTime.fromISO(data.dateNaissance) : null,
       typeContribuable,
       source,
@@ -242,20 +326,39 @@ export default class Taxpayer extends BaseModel {
     })
   }
 
+  /**
+   * Met à jour les données du contribuable avec les informations DGI
+   *
+   * @param dgiData - Données fraîches provenant du DGI
+   * @throws Error si le centre DGI n'est pas valide
+   */
   public async updateFromDGI(dgiData: TaxpayerData): Promise<void> {
-    this.nomRaisonSociale = dgiData.nomRaisonSociale
-    this.prenomSigle = dgiData.prenomSigle || null
-    this.numeroCniRc = dgiData.numeroCniRc || null
-    this.activite = dgiData.activite || null
-    this.regime = dgiData.regime || null
-    this.centre = dgiData.centre || null
-    this.etat = dgiData.etat || null
+    // Validation : Centre obligatoire depuis les données DGI
+    if (!dgiData.centre || !dgiData.centre.trim()) {
+      throw new Error('Centre from DGI data is required and cannot be empty')
+    }
+
+    // Validation : Nom obligatoire
+    if (!dgiData.nomRaisonSociale || !dgiData.nomRaisonSociale.trim()) {
+      throw new Error('Nom/Raison sociale from DGI data is required and cannot be empty')
+    }
+
+    this.nomRaisonSociale = dgiData.nomRaisonSociale.trim()
+    this.prenomSigle = dgiData.prenomSigle?.trim() || null
+    this.numeroCniRc = dgiData.numeroCniRc?.trim() || null
+    this.activite = dgiData.activite?.trim() || null
+    this.regime = dgiData.regime?.trim() || null
+    this.centre = dgiData.centre.trim() // Centre toujours valide
+    this.etat = dgiData.etat?.trim() || null
     this.dgiRawData = { ...this.dgiRawData, ...dgiData }
     this.lastDgiCheck = DateTime.now()
 
     await this.save()
   }
 
+  /**
+   * Génère les statistiques du contribuable
+   */
   public async getStats(): Promise<{
     nombreUtilisateurs: number
     derniereDGICheck: string | null
@@ -275,6 +378,10 @@ export default class Taxpayer extends BaseModel {
       statut: this.isActif() ? 'Actif' : 'Inactif',
     }
   }
+
+  // ===============================================
+  // QUERY SCOPES - MÉTHODES DE FILTRAGE
+  // ===============================================
 
   public static actifs() {
     return this.query().whereILike('etat', 'actif')

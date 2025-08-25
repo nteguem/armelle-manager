@@ -37,6 +37,7 @@ export default class TaxpayerService {
     return taxpayer
   }
 
+  // ✅ CORRECTION : Méthode updateTaxpayer avec validation stricte du centre
   async updateTaxpayer(taxpayerId: string, data: Partial<TaxpayerData>): Promise<Taxpayer> {
     const taxpayer = await Taxpayer.findOrFail(taxpayerId)
 
@@ -45,7 +46,15 @@ export default class TaxpayerService {
     if (data.numeroCniRc !== undefined) taxpayer.numeroCniRc = data.numeroCniRc?.trim() || null
     if (data.activite !== undefined) taxpayer.activite = data.activite?.trim() || null
     if (data.regime !== undefined) taxpayer.regime = data.regime?.trim() || null
-    if (data.centre !== undefined) taxpayer.centre = data.centre?.trim() || null
+
+    if (data.centre !== undefined) {
+      const centreValue = data.centre?.trim()
+      if (!centreValue || centreValue.length === 0) {
+        throw new Error('Centre is required and cannot be empty')
+      }
+      taxpayer.centre = centreValue
+    }
+
     if (data.etat !== undefined) taxpayer.etat = data.etat?.trim() || null
     if (data.phoneNumber !== undefined) taxpayer.phoneNumber = data.phoneNumber?.trim() || null
     if (data.dateNaissance !== undefined) {
@@ -143,12 +152,49 @@ export default class TaxpayerService {
     return await query
   }
 
+  /**
+   * Recherche les contribuables avec support des filtres multiples avancés
+   *
+   * @description Méthode principale de recherche avec filtrage flexible.
+   * Supporte les filtres simples (string) et multiples (array) pour une recherche granulaire.
+   *
+   * @param filters - Objet contenant les critères de filtrage
+   * @param filters.search - Recherche textuelle globale (NIU, nom, prénom, téléphone)
+   * @param filters.type_contribuable - Type(s) de contribuable (string | string[])
+   * @param filters.etat - État(s) du contribuable (string | string[])
+   * @param filters.centre - Centre(s) fiscal(aux) (string | string[]) - FONCTIONNALITÉ PRINCIPALE
+   * @param filters.regime - Régime(s) fiscal(aux) (string | string[])
+   * @param filters.phone_number - Numéro de téléphone (recherche partielle)
+   * @param filters.source - Source(s) de création (string | string[])
+   * @param filters.created_by_type - Type(s) de créateur (string | string[])
+   * @param filters.sort_by - Champ de tri
+   * @param filters.sort_order - Ordre de tri ('asc' | 'desc')
+   * @param pagination - Paramètres de pagination
+   * @param pagination.page - Numéro de page (défaut: 1)
+   * @param pagination.limit - Nombre d'éléments par page (max: 100, défaut: 20)
+   *
+   * @returns Promise<any> - Résultats paginés avec métadonnées
+   *
+   * @example
+   * // Recherche multi-centres
+   * searchTaxpayers({ centre: ['Centre Nord', 'Douala'] })
+   *
+   * // Recherche multi-critères
+   * searchTaxpayers({
+   *   centre: ['Centre Nord', 'Centre Sud'],
+   *   etat: ['Actif', 'Suspendu'],
+   *   type_contribuable: 'PM'
+   * })
+   */
   async searchTaxpayers(filters: any = {}, pagination: any = {}): Promise<any> {
     const page = pagination.page || 1
     const limit = Math.min(pagination.limit || 20, 100)
 
     let query = Taxpayer.query()
 
+    // ============================================
+    // RECHERCHE TEXTUELLE GLOBALE
+    // ============================================
     if (filters.search) {
       query = query.where((builder) => {
         builder
@@ -159,38 +205,115 @@ export default class TaxpayerService {
       })
     }
 
+    // ============================================
+    // FILTRES MULTIPLES - TYPE DE CONTRIBUABLE
+    // ============================================
     if (filters.type_contribuable) {
-      query = query.where('typeContribuable', filters.type_contribuable)
+      if (Array.isArray(filters.type_contribuable)) {
+        // Filtre exact pour les types (utilisation de whereIn pour performance)
+        query = query.whereIn('typeContribuable', filters.type_contribuable)
+      } else {
+        query = query.where('typeContribuable', filters.type_contribuable)
+      }
     }
 
+    // ============================================
+    // FILTRES MULTIPLES - ÉTAT DU CONTRIBUABLE
+    // ============================================
     if (filters.etat) {
-      query = query.whereILike('etat', `%${filters.etat}%`)
+      if (Array.isArray(filters.etat)) {
+        // Recherche flexible avec ILIKE pour supporter les variations de casse
+        query = query.where((builder) => {
+          filters.etat.forEach((etat: string, index: number) => {
+            if (index === 0) {
+              builder.whereILike('etat', `%${etat.trim()}%`)
+            } else {
+              builder.orWhereILike('etat', `%${etat.trim()}%`)
+            }
+          })
+        })
+      } else {
+        query = query.whereILike('etat', `%${filters.etat}%`)
+      }
     }
 
-    // Filtrage amélioré pour les centres
+    // ============================================
+    // FILTRES MULTIPLES - CENTRES FISCAUX ⭐
+    // ============================================
     if (filters.centre) {
-      const centreName = filters.centre.trim()
-      query = query.where((builder) => {
-        builder.whereILike('centre', `%${centreName}%`)
-      })
+      if (Array.isArray(filters.centre)) {
+        // Support pour filtrage par plusieurs centres simultanément
+        // Utilisation de OR pour inclure tous les centres spécifiés
+        query = query.where((builder) => {
+          filters.centre.forEach((centre: string, index: number) => {
+            const centreName = centre.trim()
+            if (index === 0) {
+              builder.whereILike('centre', `%${centreName}%`)
+            } else {
+              builder.orWhereILike('centre', `%${centreName}%`)
+            }
+          })
+        })
+      } else {
+        // Filtre simple par un seul centre
+        const centreName = filters.centre.trim()
+        query = query.whereILike('centre', `%${centreName}%`)
+      }
     }
 
+    // ============================================
+    // FILTRES MULTIPLES - RÉGIMES FISCAUX
+    // ============================================
     if (filters.regime) {
-      query = query.whereILike('regime', `%${filters.regime}%`)
+      if (Array.isArray(filters.regime)) {
+        query = query.where((builder) => {
+          filters.regime.forEach((regime: string, index: number) => {
+            if (index === 0) {
+              builder.whereILike('regime', `%${regime.trim()}%`)
+            } else {
+              builder.orWhereILike('regime', `%${regime.trim()}%`)
+            }
+          })
+        })
+      } else {
+        query = query.whereILike('regime', `%${filters.regime}%`)
+      }
     }
 
+    // ============================================
+    // RECHERCHE SIMPLE - NUMÉRO DE TÉLÉPHONE
+    // ============================================
     if (filters.phone_number) {
       query = query.whereILike('phoneNumber', `%${filters.phone_number}%`)
     }
 
+    // ============================================
+    // FILTRES MULTIPLES - SOURCE DE CRÉATION
+    // ============================================
     if (filters.source) {
-      query = query.where('source', filters.source)
+      if (Array.isArray(filters.source)) {
+        // Filtre exact pour les sources (enum values)
+        query = query.whereIn('source', filters.source)
+      } else {
+        query = query.where('source', filters.source)
+      }
     }
 
+    // ============================================
+    // FILTRES MULTIPLES - TYPE DE CRÉATEUR
+    // ============================================
     if (filters.created_by_type) {
-      query = query.where('createdByType', filters.created_by_type)
+      if (Array.isArray(filters.created_by_type)) {
+        // Filtre exact pour les types de créateurs (enum values)
+        query = query.whereIn('createdByType', filters.created_by_type)
+      } else {
+        query = query.where('createdByType', filters.created_by_type)
+      }
     }
 
+    // ============================================
+    // TRI ET ORDERING
+    // ============================================
     const sortBy = filters.sort_by || 'created_at'
     const sortOrder = filters.sort_order === 'asc' ? 'asc' : 'desc'
 
@@ -304,8 +427,8 @@ export default class TaxpayerService {
   }
 
   /**
-   * Méthode simplifiée pour récupérer tous les centres uniques
-   * sans la logique "Autres" complexe
+   * Récupère tous les centres uniques
+   * Le champ centre est maintenant toujours obligatoire et renseigné
    */
   async getCentres(search: string = '', pagination: any = {}): Promise<any> {
     const page = pagination.page || 1
@@ -319,8 +442,6 @@ export default class TaxpayerService {
         db.raw('MIN(created_at) as first_discovered'),
         db.raw('MAX(last_dgi_check) as last_seen')
       )
-      .whereNotNull('centre')
-      .where('centre', '!=', '')
       .groupBy('centre')
 
     if (search.trim()) {
@@ -386,6 +507,83 @@ export default class TaxpayerService {
 
   async testConnectivity(): Promise<any> {
     return await this.dgiScraperService.testConnectivity()
+  }
+
+  /**
+   * Normalise et valide les filtres de recherche multiples
+   *
+   * @description Méthode utilitaire pour traiter les filtres reçus du frontend.
+   * Convertit automatiquement les chaînes séparées par des virgules en tableaux
+   * et nettoie les données pour éviter les erreurs de recherche.
+   *
+   * @private
+   * @param filters - Objet de filtres bruts provenant de la requête HTTP
+   * @returns Objet de filtres normalisés et validés
+   *
+   * @example
+   * // Input: { centre: "Centre Nord,Douala, Centre Sud " }
+   * // Output: { centre: ["Centre Nord", "Douala", "Centre Sud"] }
+   */
+  private normalizeFilters(filters: any): any {
+    const normalized = { ...filters }
+
+    /**
+     * Configuration des champs supportant les filtres multiples
+     * Ces champs peuvent accepter soit une string, soit un array de strings
+     */
+    const multipleFilterFields = [
+      'centre', // Centres fiscaux - FONCTIONNALITÉ PRINCIPALE
+      'etat', // États des contribuables
+      'regime', // Régimes fiscaux
+      'type_contribuable', // Types de contribuables
+      'source', // Sources de création
+      'created_by_type', // Types de créateurs
+    ]
+
+    multipleFilterFields.forEach((field) => {
+      if (normalized[field]) {
+        // Traitement des chaînes avec séparateurs de virgules
+        if (typeof normalized[field] === 'string' && normalized[field].includes(',')) {
+          normalized[field] = normalized[field]
+            .split(',') // Séparer par virgules
+            .map((item: string) => item.trim()) // Supprimer les espaces
+            .filter((item: string) => item.length > 0) // Supprimer les valeurs vides
+        }
+        // Nettoyage des tableaux existants
+        else if (Array.isArray(normalized[field])) {
+          normalized[field] = normalized[field]
+            .map((item: string) => (typeof item === 'string' ? item.trim() : item))
+            .filter((item: string) => item && item.length > 0)
+        }
+      }
+    })
+
+    return normalized
+  }
+
+  /**
+   * Point d'entrée principal pour la recherche avec normalisation des filtres
+   *
+   * @description Combine la normalisation des filtres et la recherche en une seule méthode.
+   * Recommandée pour toutes les recherches provenant des endpoints publics.
+   *
+   * @param filters - Filtres bruts de la requête HTTP
+   * @param pagination - Paramètres de pagination
+   * @returns Promise<any> - Résultats de recherche paginés
+   *
+   * @example
+   * // Depuis le contrôleur
+   * const results = await service.searchTaxpayersWithNormalizedFilters({
+   *   centre: "Centre Nord,Douala",
+   *   etat: ["Actif", "Suspendu"]
+   * }, { page: 1, limit: 20 })
+   */
+  async searchTaxpayersWithNormalizedFilters(
+    filters: any = {},
+    pagination: any = {}
+  ): Promise<any> {
+    const normalizedFilters = this.normalizeFilters(filters)
+    return this.searchTaxpayers(normalizedFilters, pagination)
   }
 
   async cleanup(): Promise<void> {

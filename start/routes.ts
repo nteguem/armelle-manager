@@ -298,6 +298,10 @@ router
             router
               .post('/:id/reject', [TaxRegistrationController, 'reject'])
               .middleware(middleware.permission(['registration.process']))
+
+            router
+              .post('/upload-document', [TaxRegistrationController, 'uploadDocument'])
+              .middleware(middleware.permission(['registration.upload']))
           })
           .prefix('/admin/tax-registrations')
 
@@ -344,7 +348,7 @@ router
 
             // Vérifier manuellement le statut d'une transaction
             router
-              .post('/:id/check-status', [PaymentTransactionController, 'checkStatus'])
+              .get('/:id/check-status', [PaymentTransactionController, 'checkStatus'])
               .middleware(middleware.permission(['payment.check']))
           })
           .prefix('/admin/payment-transactions')

@@ -14,9 +14,8 @@ export default class extends BaseSchema {
       table.string('numero_cni_rc', 50).nullable()
       table.string('activite', 500).nullable()
       table.string('regime', 100).nullable()
-      table.string('centre', 100).nullable()
+      table.string('centre', 100).notNullable()
       table.string('etat', 50).nullable()
-
       table.enum('type_contribuable', ['personne_physique', 'personne_morale']).notNullable()
 
       table.string('created_by_id').notNullable()
@@ -41,6 +40,7 @@ export default class extends BaseSchema {
       table.timestamp('created_at').defaultTo(this.now()).notNullable()
       table.timestamp('updated_at').defaultTo(this.now()).notNullable()
 
+      // Index pour améliorer les performances de recherche
       table.index(['nom_raison_sociale'])
       table.index(['regime'])
       table.index(['centre'])
@@ -55,6 +55,7 @@ export default class extends BaseSchema {
       table.index(['created_by_id', 'created_by_type'])
     })
 
+    // Index unique sur NIU seulement quand la valeur n'est pas NULL
     this.schema.raw(`
       CREATE UNIQUE INDEX taxpayers_niu_unique 
       ON taxpayers (niu) 

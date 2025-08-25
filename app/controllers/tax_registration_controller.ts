@@ -4,15 +4,18 @@ import { ErrorCodes } from '#services/response_formatter'
 import TaxRegistrationService from '#services/tax_registration_service'
 import TaxpayerService from '#services/taxpayer_service'
 import User from '#models/user'
+import FileUploadService from '#services/file_upload_service'
 
 export default class TaxRegistrationController extends BaseController {
   private taxRegistrationService: TaxRegistrationService
   private taxpayerService: TaxpayerService
+  private fileUploadService: FileUploadService
 
   constructor() {
     super()
     this.taxRegistrationService = new TaxRegistrationService()
     this.taxpayerService = new TaxpayerService()
+    this.fileUploadService = new FileUploadService()
   }
 
   async index(ctx: HttpContext) {
@@ -356,6 +359,58 @@ export default class TaxRegistrationController extends BaseController {
     } catch (error: any) {
       console.error('Error fetching statistics:', error)
       return this.error(ctx, 'Failed to fetch statistics', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
+    }
+  }
+
+  /**
+   * Upload un document pour une demande d'immatriculation
+   */
+  async uploadDocument(ctx: HttpContext) {
+    try {
+      const { request } = ctx
+
+      const documentFile = request.file('document', {
+        size: '10mb',
+        extnames: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+      })
+
+      if (!documentFile) {
+        return this.validationError(ctx, {
+          document: ['Document file is required'],
+        })
+      }
+
+      if (documentFile.hasErrors) {
+        const errors = documentFile.errors.map((error) => error.message)
+        return this.validationError(ctx, {
+          document: errors,
+        })
+      }
+
+      const requestId = request.input('request_id')
+        ? Number.parseInt(request.input('request_id'))
+        : undefined
+
+      const uploadResult = await this.fileUploadService.uploadTaxRegistrationDocument(
+        documentFile,
+        requestId
+      )
+
+      if (!uploadResult.success) {
+        return this.error(ctx, uploadResult.message, 'FILE_UPLOAD_FAILED', 400)
+      }
+
+      return this.success(
+        ctx,
+        {
+          document_url: uploadResult.url,
+          metadata: uploadResult.metadata,
+        },
+        'Document uploaded successfully'
+      )
+    } catch (error: any) {
+      console.error('Error uploading document:', error)
+      return this.error(ctx, 'Failed to upload document', ErrorCodes.INTERNAL_SERVER_ERROR, 500)
     }
   }
 }

@@ -21,5 +21,5 @@ export interface TaxpayerData {
   phoneNumber?: string
   dateNaissance?: string
   regime?: string
-  centre?: string
+  centre: string
 }

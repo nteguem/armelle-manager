@@ -161,6 +161,11 @@ export default class extends BaseSeeder {
           description: "Traiter ou rejeter les demandes d'immatriculation",
         },
         {
+          name: 'registration.upload',
+          displayName: 'upload niu des demandes',
+          description: "upload  des demandes d'immatriculation",
+        },
+        {
           name: 'registration.stats',
           displayName: 'Statistiques demandes',
           description: "Voir les statistiques des demandes d'immatriculation",
