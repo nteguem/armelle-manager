@@ -301,7 +301,7 @@ router
 
             router
               .post('/upload-document', [TaxRegistrationController, 'uploadDocument'])
-              .middleware(middleware.permission(['registration.upload']))
+              .middleware(middleware.permission(['registration.process']))
           })
           .prefix('/admin/tax-registrations')
 

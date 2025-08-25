@@ -2825,6 +2825,14 @@ cliui@^8.0.1:
     strip-ansi "^6.0.1"
     wrap-ansi "^7.0.0"
 
+cloudinary@^2.7.0:
+  version "2.7.0"
+  resolved "https://registry.npmjs.org/cloudinary/-/cloudinary-2.7.0.tgz"
+  integrity sha512-qrqDn31+qkMCzKu1GfRpzPNAO86jchcNwEHCUiqvPHNSFqu7FTNF9FuAkBUyvM1CFFgFPu64NT0DyeREwLwK0w==
+  dependencies:
+    lodash "^4.17.21"
+    q "^1.5.1"
+
 code-block-writer@^13.0.1:
   version "13.0.3"
   resolved "https://registry.npmjs.org/code-block-writer/-/code-block-writer-13.0.3.tgz"
@@ -5093,6 +5101,11 @@ puppeteer@*, puppeteer@^24.10.2:
     devtools-protocol "0.0.1452169"
     puppeteer-core "24.10.2"
     typed-query-selector "^2.12.0"
+
+q@^1.5.1:
+  version "1.5.1"
+  resolved "https://registry.npmjs.org/q/-/q-1.5.1.tgz"
+  integrity sha512-kV/CThkXo6xyFEZUugw/+pIOywXcDbFYgSct5cT3gqlbkBE1SJdwy6UQoZvodiWF/ckQLZyDE/Bu1M6gVu5lVw==
 
 qrcode-terminal@^0.12.0:
   version "0.12.0"
