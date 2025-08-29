@@ -1,5 +1,5 @@
 import env from '#start/env'
-import PaymentTransaction from '#models/payment_transaction'
+import PaymentTransaction from '#models/rest-api/payment_transaction'
 
 interface EjaraAuthResponse {
   message: string

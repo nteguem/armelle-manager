@@ -1,5 +1,5 @@
 import { BaseSeeder } from '@adonisjs/lucid/seeders'
-import Role from '#models/role'
+import Role from '#models/rest-api/role'
 
 export default class extends BaseSeeder {
   async run() {

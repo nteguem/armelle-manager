@@ -155,7 +155,7 @@ export default class DGIScraperService {
 
   async rechercherParNom(nom: string): Promise<ScraperResponse<TaxpayerData[]>> {
     const startTime = Date.now()
-
+    console.log('nomm', nom)
     if (!nom || !nom.trim()) {
       return {
         success: false,
@@ -208,6 +208,7 @@ export default class DGIScraperService {
                 : 'multiple',
         }
       }
+      console.log('DGI search result:', resultPremierNom)
 
       this.trackPerformance(startTime)
       return resultPremierNom

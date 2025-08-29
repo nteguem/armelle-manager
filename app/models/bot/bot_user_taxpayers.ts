@@ -3,7 +3,7 @@ import { BaseModel, column, belongsTo } from '@adonisjs/lucid/orm'
 import { DateTime } from 'luxon'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
 import BotUser from './bot_user.js'
-import Taxpayer from './tax_payer.js'
+import Taxpayer from '../rest-api/tax_payer.js'
 
 export default class BotUserTaxpayer extends BaseModel {
   static table = 'bot_user_taxpayers'

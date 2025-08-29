@@ -1,5 +1,5 @@
-import BotUser from '#models/bot_user'
-import BotSession from '#models/bot_session'
+import BotUser from '#models/bot/bot_user'
+import BotSession from '#models/bot/bot_session'
 import botConfig from '#config/bot'
 import type { SessionContext, MessageChannel, SupportedLanguage } from '#bot/types/bot_types'
 

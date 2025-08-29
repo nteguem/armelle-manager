@@ -1,8 +1,8 @@
 import { DateTime } from 'luxon'
 import db from '@adonisjs/lucid/services/db'
-import BotUser from '#models/bot_user'
-import Taxpayer from '#models/tax_payer'
-import BotUserTaxpayer from '#models/bot_user_taxpayers'
+import BotUser from '#models/bot/bot_user'
+import Taxpayer from '#models/rest-api/tax_payer'
+import BotUserTaxpayer from '#models/bot/bot_user_taxpayers'
 
 export default class BotUserService {
   async createBotUser(data: {
@@ -218,6 +218,44 @@ export default class BotUserService {
         language: row.language,
         count: Number(row.$extras?.count || 0),
       })),
+    }
+  }
+
+  /**
+   * Met à jour le nom complet de l'utilisateur
+   */
+  async updateFullName(userId: string, fullName: string): Promise<void> {
+    try {
+      const botUser = await BotUser.find(userId)
+      if (!botUser) {
+        throw new Error(`BotUser not found: ${userId}`)
+      }
+
+      botUser.fullName = fullName.trim()
+      await botUser.save()
+
+      console.log(`✅ BotUser ${userId} fullName updated to: ${fullName}`)
+    } catch (error) {
+      console.error('Error updating bot user fullName:', error)
+      throw new Error(`Failed to update fullName: ${error.message}`)
+    }
+  }
+
+  /**
+   * Marque un utilisateur bot comme vérifié
+   */
+  async markAsVerified(userId: string): Promise<void> {
+    try {
+      const botUser = await BotUser.find(userId)
+      if (!botUser) {
+        throw new Error(`BotUser not found: ${userId}`)
+      }
+
+      await botUser.markAsVerified()
+      console.log(`✅ BotUser ${userId} marked as verified`)
+    } catch (error) {
+      console.error('Error marking bot user as verified:', error)
+      throw new Error(`Failed to mark as verified: ${error.message}`)
     }
   }
 }

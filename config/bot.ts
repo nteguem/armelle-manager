@@ -49,28 +49,7 @@ export default {
     typingDelayMs: 1000,
     errorRetryAttempts: 3,
     defaultFooter: true,
-  },
-
-  /**
-   * Workflows
-   */
-  workflows: {
-    enabled: true,
-    systemPath: 'resources/workflows/system',
-    featuresPath: 'resources/workflows/features',
-    maxStepTimeoutMs: 30000,
-    enableStepHistory: true,
-    maxHistorySize: 20,
-  },
-
-  /**
-   * Service DGI
-   */
-  dgi: {
-    enabled: true,
-    timeoutMs: 8000,
-    retryAttempts: 1,
-    cacheResults: false, // Données fiscales sensibles
+    typingSimulation: true,
   },
 
   /**

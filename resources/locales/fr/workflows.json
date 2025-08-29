@@ -1,30 +1,24 @@
 {
   "onboarding": {
-    "title": "Inscription",
-    "subflows": {
-      "registration": "Inscription",
-      "no_results": "Aucun résultat",
-      "confirmation": "Confirmation",
-      "selection": "Sélection",
-      "manual_niu": "NIU manuel",
-      "error_recovery": "Gestion erreur"
-    },
-    "welcome_collect_name": "👋 Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\n\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
-    "searching_dgi": "🔍 Recherche en cours...\n\nVérification de votre identité dans la base DGI.\nVeuillez patienter...",
-    "no_results": "❌ Aucun contribuable trouvé avec \"{{userName}}\"\n\n1. Réessayer avec un autre nom\n2. Saisir votre NIU manuellement\n3. Continuer sans NIU",
-    "confirm_single": "✅ Contribuable trouvé !\n\n📋 {{nom}} {{prenom}}\n🆔 NIU : {{niu}}\n🏢 Centre : {{centre}}\n\n1. Oui, c'est moi\n2. Non, réessayer",
-    "select_from_list": "📋 {{count}} contribuables trouvés\n\n{{taxpayersList}}\n\n0. Aucun de ces profils",
-    "dgi_error": "⚠️ Service DGI temporairement indisponible\n\n1. Réessayer la recherche\n2. Saisir votre NIU manuellement\n3. Continuer sans vérification",
-    "manual_niu_entry": "Saisissez votre NIU (Numéro d'Identification Unique) :\n\nExemple : P039816725402F",
-    "verify_niu": "🔍 Vérification NIU en cours...\n\nValidation de votre NIU auprès de la DGI.\nVeuillez patienter...",
-    "confirm_manual_taxpayer": "✅ NIU validé !\n\n📋 {{nom}} {{prenom}}\n🆔 NIU : {{niu}}\n🏛️ Activité : {{activite}}\n📊 Statut : {{etat}}\n\n1. Oui, c'est correct\n2. Non, continuer sans NIU",
-    "complete": "🎉 Bienvenue {{userName}} !\n\n{{taxpayerInfo}}Votre compte est configuré avec succès.",
-    "complete_with_taxpayer": "✅ NIU : {{niu}}\n📍 Centre : {{centre}}\n👤 Statut : Vérifié DGI\n\n",
-    "complete_without_taxpayer": "Vous pourrez lier un contribuable plus tard si souhaité.\n\n",
-    "footer": {
-      "enter_name": "Veuillez entrer votre nom complet",
-      "enter_niu": "Corrigez et renvoyez votre réponse",
-      "complete": "Tapez \"menu\" pour revenir ou \"armelle\" pour parler avec l'assistant"
-    }
+    "collect_name": "Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\n\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
+
+    "searching_dgi": "Vérification de votre identité dans la base DGI.\nVeuillez patienter...",
+
+    "confirm_single": "1 contribuable trouvé\n\n1. {{service_result.data.0.nomRaisonSociale}} {{service_result.data.0.prenomSigle}} - {{service_result.data.0.centre}}\n\n0. Aucun de ces profils",
+
+    "select_multiple": "{{service_result.data.length}} contribuables trouvés\n\n",
+
+    "select_too_many": "Trop de résultats trouvés ({{service_result.data.length}} contribuables).\n\nSaisissez un nom plus précis :",
+
+    "complete_with_taxpayer": "Bienvenue {{user_name}} !\n\nNIU : {{selected_taxpayer.niu}}\nCentre : {{selected_taxpayer.centre}}\nStatut : Vérifié DGI\n\nVotre compte est configuré avec succès.",
+
+    "complete_name_only": "Bienvenue {{user_name}} !\n\nVotre inscription est terminée.",
+
+    "search_error": "❌ Service DGI temporairement indisponible.\n\nVotre inscription continue sans vérification DGI.",
+
+    "link_error": "Votre inscription est terminée.\nLa vérification DGI se fera automatiquement plus tard.",
+
+    "option_yes_its_me": "Oui, c'est moi",
+    "option_no_retry": "Non, réessayer"
   }
 }

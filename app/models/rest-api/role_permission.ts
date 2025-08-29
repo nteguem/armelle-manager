@@ -1,8 +1,8 @@
 import { DateTime } from 'luxon'
 import { BaseModel, column, belongsTo } from '@adonisjs/lucid/orm'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
-import Role from '#models/role'
-import Permission from '#models/permission'
+import Role from '#models/rest-api/role'
+import Permission from '#models/rest-api/permission'
 
 export default class RolePermission extends BaseModel {
   @column()

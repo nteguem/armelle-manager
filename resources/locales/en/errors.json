@@ -1,39 +1,15 @@
 {
   "validation": {
-    "required": "This field is required",
-    "too_short": "Text is too short (minimum {{min}} characters)",
-    "too_long": "Text is too long (maximum {{max}} characters)",
-    "invalid_format": "Invalid format",
-    "name_required": "Name is required",
-    "name_too_short": "Name must contain at least 2 characters",
-    "name_too_long": "Name cannot exceed 100 characters",
-    "name_invalid_chars": "Name can only contain letters, spaces and hyphens",
-    "niu_invalid": "Invalid NIU (example: P039816725402F)",
-    "phone_invalid": "Invalid phone number",
-    "amount_invalid": "Invalid amount"
-  },
-  "system": {
-    "processing_error": "⚠️ Processing error. Please try again.",
-    "service_unavailable": "Service temporarily unavailable",
-    "timeout": "Timeout exceeded",
-    "network_error": "Connection error"
+    "required": "This field is required"
   },
   "commands": {
-    "menu_blocked_onboarding": "❌ Menu not available during registration",
-    "not_allowed_in_onboarding": "This command is not available during registration",
-    "unknown_command": "Unknown command",
-    "workflow_only": "This command is only available in a process",
-    "blocked_in_workflow": "Command not allowed during {{workflow}}",
-    "not_allowed_in_context": "Command not allowed in this context"
-  },
-  "menu": {
-    "invalid_choice": "❌ Invalid choice. Please select a valid option.",
-    "no_options": "No options available"
+    "not_allowed_in_context": "This command is not available in the current context"
   },
   "workflow": {
-    "not_found": "Workflow not found",
-    "step_not_found": "Step not found",
-    "action_failed": "Action failed",
-    "transition_failed": "Transition failed"
+    "start_failed": "Unable to start the process. Please try again.",
+    "processing_failed": "Processing error. Please try again."
+  },
+  "menu": {
+    "invalid_choice": "Invalid option. Please choose a suggested option."
   }
 }

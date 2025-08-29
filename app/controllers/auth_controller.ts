@@ -1,5 +1,5 @@
 import BaseController from '#controllers/base_controller'
-import User from '#models/user'
+import User from '#models/rest-api/user'
 import AuthService from '#services/auth_service'
 import NellysCoinService from '#services/nellys_coin_service'
 import { ErrorCodes } from '#services/response_formatter'

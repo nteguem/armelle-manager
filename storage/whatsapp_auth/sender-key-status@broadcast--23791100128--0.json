@@ -1,0 +1,8 @@
+[
+  {
+    "senderKeyId": 1775795891,
+    "senderChainKey": { "iteration": 1, "seed": "ZhT4422ZdHsS3FWVasICCczaEq+E2OI/gbFSZ0CRsEk=" },
+    "senderSigningKey": { "public": "BTTtdDJ4qelhhI6KuitoQwznjAC4OHOl+GxZXbRxW+RP" },
+    "senderMessageKeys": []
+  }
+]

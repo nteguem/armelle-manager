@@ -1,4 +1,4 @@
-import PasswordResetToken from '#models/password_reset_token'
+import PasswordResetToken from '#models/rest-api/password_reset_token'
 import { DateTime } from 'luxon'
 import stringHelpers from '@adonisjs/core/helpers/string'
 

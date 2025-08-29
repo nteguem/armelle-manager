@@ -2,7 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import NellysCoinService from '#services/nellys_coin_service'
 import PasswordService from '#services/password_service'
 import AuthService from '#services/auth_service'
-import PasswordResetToken from '#models/password_reset_token'
+import PasswordResetToken from '#models/rest-api/password_reset_token'
 import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
 import {

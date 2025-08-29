@@ -1,6 +1,6 @@
 import type { HttpContext } from '@adonisjs/core/http'
-import User from '#models/user'
-import Role from '#models/role'
+import User from '#models/rest-api/user'
+import Role from '#models/rest-api/role'
 import PermissionService from '#services/permission_service'
 import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'

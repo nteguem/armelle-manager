@@ -1,8 +1,8 @@
-import User from '#models/user'
-import Role from '#models/role'
-import Permission from '#models/permission'
-import UserRole from '#models/user_role'
-import UserPermission from '#models/user_permission'
+import User from '#models/rest-api/user'
+import Role from '#models/rest-api/role'
+import Permission from '#models/rest-api/permission'
+import UserRole from '#models/rest-api/user_role'
+import UserPermission from '#models/rest-api/user_permission'
 import { DateTime } from 'luxon'
 import Database from '@adonisjs/lucid/services/db'
 

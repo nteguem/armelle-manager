@@ -3,7 +3,7 @@ import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
 import TaxRegistrationService from '#services/tax_registration_service'
 import TaxpayerService from '#services/taxpayer_service'
-import User from '#models/user'
+import User from '#models/rest-api/user'
 import CloudinaryUploadService from '#services/cloudinary_file_upload_service'
 
 export default class TaxRegistrationController extends BaseController {

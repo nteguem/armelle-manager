@@ -1,10 +1,10 @@
 import { DateTime } from 'luxon'
 import { BaseModel, belongsTo, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
 import type { BelongsTo, HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
-import BotUser from './bot_user.js'
+import BotUser from '../bot/bot_user.js'
 import { type TypeContribuable, TaxpayerData } from '#types/taxpayer_types'
 import User from './user.js'
-import BotUserTaxpayer from './bot_user_taxpayers.js'
+import BotUserTaxpayer from '../bot/bot_user_taxpayers.js'
 import UserTaxpayer from './user_taxpayers.js'
 import TaxRegistrationRequest from './tax_registration_request.js'
 

@@ -7,6 +7,7 @@ import {
   proto,
 } from '@whiskeysockets/baileys'
 import QRTerminal from 'qrcode-terminal'
+import botConfig from '#config/bot'
 import type {
   ChannelAdapter,
   IncomingMessage,
@@ -93,7 +94,7 @@ export default class WhatsAppAdapter implements ChannelAdapter {
   }
 
   private async simulateTyping(jid: string, content: string): Promise<void> {
-    if (!this.socket) return
+    if (!this.socket || !botConfig.messages.typingSimulation) return
 
     try {
       const wordsCount = content.split(' ').length
@@ -158,11 +159,14 @@ export default class WhatsAppAdapter implements ChannelAdapter {
   }
 
   public async stop(): Promise<void> {
-    if (this.socket && this.connectionStatus) {
+    const keepAlive = process.env.WHATSAPP_KEEP_ALIVE === 'true'
+
+    if (!keepAlive && this.socket && this.connectionStatus) {
       await this.socket.logout()
     }
+
     this.socket = null
     this.connectionStatus = false
-    console.log('📱 WhatsApp stopped')
+    console.log('WhatsApp stopped')
   }
 }

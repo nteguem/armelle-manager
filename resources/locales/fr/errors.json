@@ -1,39 +1,15 @@
 {
   "validation": {
-    "required": "Ce champ est obligatoire",
-    "too_short": "Le texte est trop court (minimum {{min}} caractères)",
-    "too_long": "Le texte est trop long (maximum {{max}} caractères)",
-    "invalid_format": "Format invalide",
-    "name_required": "Le nom est obligatoire",
-    "name_too_short": "Le nom doit contenir au moins 2 caractères",
-    "name_too_long": "Le nom ne peut dépasser 100 caractères",
-    "name_invalid_chars": "Le nom ne peut contenir que des lettres, espaces et tirets",
-    "niu_invalid": "NIU invalide (exemple: P039816725402F)",
-    "phone_invalid": "Numéro de téléphone invalide",
-    "amount_invalid": "Montant invalide"
-  },
-  "system": {
-    "processing_error": "⚠️ Erreur de traitement. Veuillez réessayer.",
-    "service_unavailable": "Service temporairement indisponible",
-    "timeout": "Délai d'attente dépassé",
-    "network_error": "Erreur de connexion"
+    "required": "Ce champ est obligatoire"
   },
   "commands": {
-    "menu_blocked_onboarding": "❌ Menu non disponible pendant l'inscription",
-    "not_allowed_in_onboarding": "Cette commande n'est pas disponible pendant l'inscription",
-    "unknown_command": "Commande non reconnue",
-    "workflow_only": "Cette commande n'est disponible que dans un processus",
-    "blocked_in_workflow": "Commande non autorisée pendant {{workflow}}",
-    "not_allowed_in_context": "Commande non autorisée dans ce contexte"
-  },
-  "menu": {
-    "invalid_choice": "❌ Choix invalide. Veuillez sélectionner une option valide.",
-    "no_options": "Aucune option disponible"
+    "not_allowed_in_context": "Cette commande n'est pas disponible dans le contexte actuel"
   },
   "workflow": {
-    "not_found": "Workflow non trouvé",
-    "step_not_found": "Étape non trouvée",
-    "action_failed": "Échec de l'action",
-    "transition_failed": "Échec de la transition"
+    "start_failed": "Impossible de démarrer le processus. Veuillez réessayer.",
+    "processing_failed": "Erreur lors du traitement. Veuillez réessayer."
+  },
+  "menu": {
+    "invalid_choice": "Option invalide. Veuillez choisir une option proposée."
   }
 }

@@ -3,7 +3,7 @@ import { DateTime } from 'luxon'
 import { BaseModel, column, belongsTo } from '@adonisjs/lucid/orm'
 import type { BelongsTo } from '@adonisjs/lucid/types/relations'
 import User from './user.js'
-import BotUser from './bot_user.js'
+import BotUser from '../bot/bot_user.js'
 
 export default class TaxRegistrationRequest extends BaseModel {
   @column({ isPrimary: true })

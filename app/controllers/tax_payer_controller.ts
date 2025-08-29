@@ -2,7 +2,7 @@ import type { HttpContext } from '@adonisjs/core/http'
 import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
 import TaxpayerService from '#services/taxpayer_service'
-import User from '#models/user'
+import User from '#models/rest-api/user'
 
 export default class TaxPayerController extends BaseController {
   private taxpayerService: TaxpayerService

@@ -5,6 +5,7 @@ import I18nManager from '#bot/core/managers/i18n_manager'
 import WhatsAppAdapter from '#bot/core/adapters/whatsapp_adapter'
 import botConfig from '#config/bot'
 import type { ChannelAdapter, IncomingMessage } from '#bot/types/bot_types'
+import WorkflowManager from '#bot/core/workflow/workflow_manager'
 
 export default class BotService {
   private messageDispatcher: MessageDispatcher
@@ -101,14 +102,15 @@ export default class BotService {
     const i18nManager = I18nManager.getInstance()
     await i18nManager.initialize()
 
-    // CommandManager
+    // CommandManager - maintenant avec initialisation asynchrone
     const commandManager = CommandManager.getInstance()
-    // Pas besoin d'initialisation asynchrone
+    await commandManager.initialize()
 
+    // Pas besoin d'initialisation asynchrone
+    const workflowManager = WorkflowManager.getInstance()
+    await workflowManager.initialize()
     // SessionManager
     const sessionManager = SessionManager.getInstance()
-    // Pas besoin d'initialisation asynchrone
-
     console.log('✅ All managers initialized')
   }
 

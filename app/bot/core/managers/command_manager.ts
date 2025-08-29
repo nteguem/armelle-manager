@@ -24,15 +24,31 @@ type WorkflowRestrictions = {
   }
 }
 
+interface CommandsConfig {
+  systemCommands: {
+    language: Record<string, CommandConfig>
+    navigation: Record<string, CommandConfig>
+    workflow: Record<string, CommandConfig>
+  }
+  restrictions: WorkflowRestrictions
+  detection: {
+    caseSensitive: boolean
+    exactMatch: boolean
+    maxSynonyms: number
+    timeoutMs: number
+  }
+}
+
 export default class CommandManager {
   private static instance: CommandManager
   private commandMap: Map<string, { type: string; category: string; config: CommandConfig }> =
     new Map()
   private i18n: I18nManager
+  private commandsConfig: CommandsConfig
 
   private constructor() {
     this.i18n = I18nManager.getInstance()
-    this.buildCommandMap()
+    this.commandsConfig = commandsConfig
   }
 
   public static getInstance(): CommandManager {
@@ -43,10 +59,31 @@ export default class CommandManager {
   }
 
   /**
+   * Initialise le CommandManager
+   */
+  public async initialize(): Promise<void> {
+    this.buildCommandMap()
+  }
+
+  /**
+   * Recharge la configuration (utile en développement)
+   */
+  public async reloadConfiguration(): Promise<void> {
+    console.log('🔄 Reloading commands configuration...')
+    this.commandMap.clear()
+    this.buildCommandMap()
+    console.log('✅ Commands configuration reloaded')
+  }
+
+  /**
    * Construit la map des commandes depuis la configuration
    */
   private buildCommandMap(): void {
-    const { systemCommands } = commandsConfig
+    if (!this.commandsConfig) {
+      throw new Error('Commands configuration not loaded')
+    }
+
+    const { systemCommands } = this.commandsConfig
 
     // Commandes de langue
     Object.entries(systemCommands.language).forEach(([type, config]) => {
@@ -80,6 +117,8 @@ export default class CommandManager {
         })
       })
     })
+
+    console.log(`✅ Command map built with ${this.commandMap.size} synonyms`)
   }
 
   /**
@@ -132,7 +171,7 @@ export default class CommandManager {
     // Vérifier les restrictions par workflow
     const currentWorkflow = context.currentWorkflow
     if (currentWorkflow) {
-      const restrictions = (commandsConfig.restrictions as WorkflowRestrictions)[currentWorkflow]
+      const restrictions = this.commandsConfig.restrictions[currentWorkflow]
       if (restrictions && restrictions.blocked.includes(command.type)) {
         return false
       }
@@ -176,7 +215,7 @@ export default class CommandManager {
    * Récupère la langue cible pour une commande de langue
    */
   public getLanguageTarget(commandType: string): SupportedLanguage | null {
-    const { systemCommands } = commandsConfig
+    const { systemCommands } = this.commandsConfig
     const languageCommands = systemCommands.language as Record<string, any>
     const languageCommand = languageCommands[commandType]
 
@@ -189,11 +228,44 @@ export default class CommandManager {
   public requiresConfirmation(commandType: string): boolean {
     // Chercher dans toutes les catégories
     const allCommands = {
-      ...commandsConfig.systemCommands.language,
-      ...commandsConfig.systemCommands.navigation,
-      ...commandsConfig.systemCommands.workflow,
+      ...this.commandsConfig.systemCommands.language,
+      ...this.commandsConfig.systemCommands.navigation,
+      ...this.commandsConfig.systemCommands.workflow,
     } as Record<string, any>
 
     return allCommands[commandType]?.confirmationRequired || false
+  }
+
+  /**
+   * Récupère les statistiques des commandes
+   */
+  public getStats(): {
+    totalSynonyms: number
+    commandsByCategory: Record<string, number>
+    restrictedWorkflows: string[]
+  } {
+    const stats = {
+      totalSynonyms: this.commandMap.size,
+      commandsByCategory: {} as Record<string, number>,
+      restrictedWorkflows: [] as string[],
+    }
+
+    // Compter par catégorie
+    for (const command of this.commandMap.values()) {
+      stats.commandsByCategory[command.category] =
+        (stats.commandsByCategory[command.category] || 0) + 1
+    }
+
+    // Workflows avec restrictions
+    stats.restrictedWorkflows = Object.keys(this.commandsConfig.restrictions)
+
+    return stats
+  }
+
+  /**
+   * Vérifie si la configuration est chargée
+   */
+  public isConfigurationLoaded(): boolean {
+    return this.commandMap.size > 0
   }
 }

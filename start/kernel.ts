@@ -46,7 +46,6 @@ router.use([
 export const middleware = router.named({
   auth: () => import('#middleware/auth_middleware'),
   nellysAuth: () => import('#middleware/nellys_auth_middleware'),
-  panelAccess: () => import('#middleware/panel_access_middleware'),
   role: () => import('#middleware/role_middleware'),
   permission: () => import('#middleware/permission_middleware'),
 })

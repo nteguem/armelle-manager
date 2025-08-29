@@ -1,7 +1,7 @@
 /**
  * Contract for extending HTTP context
  */
-import User from '#models/user'
+import User from '#models/rest-api/user'
 
 declare module '@adonisjs/core/http' {
   interface HttpContext {

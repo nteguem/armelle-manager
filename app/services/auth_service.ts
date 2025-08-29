@@ -1,6 +1,6 @@
-import MfaSession from '#models/mfa_session'
-import User from '#models/user'
-import Role from '#models/role'
+import MfaSession from '#models/rest-api/mfa_session'
+import User from '#models/rest-api/user'
+import Role from '#models/rest-api/role'
 import { DateTime } from 'luxon'
 import type { LoginResponse } from '../types/nellys_coin_types.js'
 

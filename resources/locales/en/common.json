@@ -1,18 +1,24 @@
 {
-  "bot_header": "My Virtual IGS/ Cameroon Tax Assistant",
+  "bot_header": "My Virtual Assistant IGS/ Cameroon Taxes",
   "step_progress": "Step {{current}}/{{total}}",
   "welcome_message": "👋 Welcome {{name}}!",
   "continue_onboarding": "Please complete your registration",
   "navigation": {
-    "select_option": "Select an option",
-    "enter_text": "Please enter your response",
-    "retry": "Correct and resend your response",
-    "cannot_go_back": "Cannot go back",
-    "menu_return": "Type \"menu\" to return or \"armelle\" to chat with the assistant"
+    "onboarding_step1": "Please enter your name | \"fr\" pour Français",
+    "onboarding_step2": "Type * to go back | \"fr\" pour Français",
+    "onboarding_step3": "Type * to go back or \"fr\" pour Français",
+    "onboarding_too_many": "Enter full name | \"fr\" pour Français",
+    "onboarding_final": "Type \"menu\" for options | \"armelle\" for the assistant"
   },
-  "help_message": "I'm Armelle, your tax assistant!\n\nAvailable commands:\n• menu - Return to main menu\n• * - Go back to previous step\n• fr/en - Change language\n• help - Show this help",
+  "subheaders": {
+    "inscription_step1": "Registration - Step 1/3",
+    "inscription_step2": "Registration - Step 2/3",
+    "inscription_step3": "Registration - Step 3/3",
+    "bienvenue": "Welcome {{name}}!"
+  },
   "main_menu": {
-    "title": "MAIN MENU",
-    "footer": "Select an option or type \"armelle\" to chat freely"
+    "welcome_back": "🎉 Setup complete!\n\nHello! I am ready to help you with your tax questions.",
+    "subtitle": "Main Menu",
+    "footer": "Coming soon: IGS Calculations, E-filing, Tax advice..."
   }
 }

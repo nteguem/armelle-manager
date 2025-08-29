@@ -3,8 +3,8 @@ import BaseController from '#controllers/base_controller'
 import { ErrorCodes } from '#services/response_formatter'
 import EjaraPayService from '#services/ejara_pay_service'
 import TaxRegistrationService from '#services/tax_registration_service'
-import PaymentTransaction from '#models/payment_transaction'
-import User from '#models/user'
+import PaymentTransaction from '#models/rest-api/payment_transaction'
+import User from '#models/rest-api/user'
 
 export default class PaymentTransactionController extends BaseController {
   private ejaraPayService: EjaraPayService

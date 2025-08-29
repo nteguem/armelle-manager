@@ -1,4 +1,4 @@
-import TaxRegistrationRequest from '#models/tax_registration_request'
+import TaxRegistrationRequest from '#models/rest-api/tax_registration_request'
 import { RegistrationData } from '#types/registration_types'
 
 export default class TaxRegistrationService {

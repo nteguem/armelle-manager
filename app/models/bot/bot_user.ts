@@ -3,7 +3,7 @@ import { BaseModel, column, hasMany, manyToMany } from '@adonisjs/lucid/orm'
 import type { HasMany, ManyToMany } from '@adonisjs/lucid/types/relations'
 import BotSession from './bot_session.js'
 import BotMessage from './bot_message.js'
-import Taxpayer from './tax_payer.js'
+import Taxpayer from '../rest-api/tax_payer.js'
 import BotUserTaxpayer from './bot_user_taxpayers.js'
 
 export default class BotUser extends BaseModel {
