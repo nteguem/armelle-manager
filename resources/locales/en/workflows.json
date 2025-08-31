@@ -1,24 +1,17 @@
 {
   "onboarding": {
-    "collect_name": "Hello! I'm Armelle, your Cameroon tax assistant.\n\nI can help you calculate your IGS, file your tax returns, meet deadlines and answer general tax questions!\n\nTo start, enter your Name/Business name.\nExample: MBARGA FOUDA / ABC EXPRESS",
-
+    "name": "Registration",
+    "collect_name": "👋 Hello! I'm Armelle, your Cameroonian tax assistant.\nI can help you calculate your IGS, make your e-declarations, respect your deadlines and answer your general tax questions!\n\nTo get started, enter Name/Company name.\nExample: MBARGA FOUDA / ABC EXPRESS",
     "searching_dgi": "Verifying your identity in the DGI database.\nPlease wait...",
-
-    "confirm_single": "1 taxpayer found\n\n1. {{service_result.data.0.nomRaisonSociale}} {{service_result.data.0.prenomSigle}} - {{service_result.data.0.centre}}\n\n0. None of these profiles",
-
-    "select_multiple": "{{service_result.data.length}} taxpayers found\n\n",
-
-    "select_too_many": "Too many results found ({{service_result.data.length}} taxpayers).\n\nEnter a more specific name:",
-
-    "complete_with_taxpayer": "Welcome {{user_name}}!\n\nNIU: {{selected_taxpayer.niu}}\nCenter: {{selected_taxpayer.centre}}\nStatus: DGI Verified\n\nYour account is successfully configured.",
-
-    "complete_name_only": "Welcome {{user_name}}!\n\nYour registration is complete.",
-
-    "search_error": "❌ DGI service temporarily unavailable.\n\nYour registration continues without DGI verification.",
-
-    "link_error": "Your registration is complete.\nDGI verification will be done automatically later.",
-
-    "option_yes_its_me": "Yes, that's me",
-    "option_no_retry": "No, try again"
+    "selection_menu": "Multiple profiles match your name:\n\nPlease select yours:",
+    "too_many_results": "Too many results found ({{count}}).\n\nPlease specify your full name.",
+    "invalid_selection": "Invalid selection. Please choose a proposed option.",
+    "completion_subheader": "Registration successful {{name}}!",
+    "completion_content": "How can I help you today?",
+    "completion_footer": "Type \"menu\" for available options | \"fr\" pour Français",
+    "completion_name_only": "Registration successful with your name only.",
+    "completion_existing_taxpayer": "Your taxpayer profile (NIU: {{niu}}) has been successfully linked.",
+    "completion_new_taxpayer": "Your taxpayer profile has been created and linked successfully.",
+    "complete": "Registration completed successfully!"
   }
 }

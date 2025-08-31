@@ -1,24 +1,17 @@
 {
   "onboarding": {
-    "collect_name": "Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\n\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
-
+    "name": "Inscription",
+    "collect_name": "👋 Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
     "searching_dgi": "Vérification de votre identité dans la base DGI.\nVeuillez patienter...",
-
-    "confirm_single": "1 contribuable trouvé\n\n1. {{service_result.data.0.nomRaisonSociale}} {{service_result.data.0.prenomSigle}} - {{service_result.data.0.centre}}\n\n0. Aucun de ces profils",
-
-    "select_multiple": "{{service_result.data.length}} contribuables trouvés\n\n",
-
-    "select_too_many": "Trop de résultats trouvés ({{service_result.data.length}} contribuables).\n\nSaisissez un nom plus précis :",
-
-    "complete_with_taxpayer": "Bienvenue {{user_name}} !\n\nNIU : {{selected_taxpayer.niu}}\nCentre : {{selected_taxpayer.centre}}\nStatut : Vérifié DGI\n\nVotre compte est configuré avec succès.",
-
-    "complete_name_only": "Bienvenue {{user_name}} !\n\nVotre inscription est terminée.",
-
-    "search_error": "❌ Service DGI temporairement indisponible.\n\nVotre inscription continue sans vérification DGI.",
-
-    "link_error": "Votre inscription est terminée.\nLa vérification DGI se fera automatiquement plus tard.",
-
-    "option_yes_its_me": "Oui, c'est moi",
-    "option_no_retry": "Non, réessayer"
+    "selection_menu": "Plusieurs profils correspondent à votre nom :\n\nVeuillez sélectionner le vôtre :",
+    "too_many_results": "Trop de résultats trouvés ({{count}}).\n\nVeuillez préciser votre nom complet.",
+    "invalid_selection": "Sélection invalide. Veuillez choisir une option proposée.",
+    "completion_subheader": "Inscription réussie {{name}} !",
+    "completion_content": "Comment puis-je vous aider aujourd'hui ?",
+    "completion_footer": "Tapez \"menu\" pour les options disponibles | \"en\" for English",
+    "completion_name_only": "Inscription réussie avec votre nom uniquement.",
+    "completion_existing_taxpayer": "Votre profil contribuable (NIU: {{niu}}) a été lié avec succès.",
+    "completion_new_taxpayer": "Votre profil contribuable a été créé et lié avec succès.",
+    "complete": "Inscription terminée avec succès !"
   }
 }

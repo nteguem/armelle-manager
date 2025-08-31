@@ -3,7 +3,9 @@
     "required": "Ce champ est obligatoire"
   },
   "commands": {
-    "not_allowed_in_context": "Cette commande n'est pas disponible dans le contexte actuel"
+    "not_allowed_in_context": "Cette commande n'est pas disponible dans le contexte actuel",
+    "blocked_in_workflow": "Cette commande est bloquée dans le workflow {{workflow}}",
+    "menu_blocked_onboarding": "Le menu n'est pas accessible pendant l'inscription"
   },
   "workflow": {
     "start_failed": "Impossible de démarrer le processus. Veuillez réessayer.",

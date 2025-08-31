@@ -4,21 +4,37 @@
   "welcome_message": "👋 Bienvenue {{name}} !",
   "continue_onboarding": "Veuillez terminer votre inscription",
   "navigation": {
-    "onboarding_step1": "Veuillez entrer votre nom | \"en\" for English",
-    "onboarding_step2": "Tapez * pour revenir | \"en\" for English",
-    "onboarding_step3": "Tapez * pour revenir ou \"en\" for English",
-    "onboarding_too_many": "Entrez nom complet | \"en\" for English",
-    "onboarding_final": "Tapez \"menu\" pour les options | \"armelle\" pour l'assistant"
+    "select_option": "Sélectionnez une option",
+    "enter_text": "Veuillez entrer votre réponse",
+    "retry": "Corrigez et renvoyez votre réponse",
+    "cannot_go_back": "Impossible de revenir en arrière",
+    "menu_return": "Tapez \"menu\" pour revenir ou \"aide\" pour l'assistance",
+    "back_and_menu": "Tapez \"*\" pour revenir, \"menu\" pour le menu ou \"aide\" pour l'assistance"
   },
-  "subheaders": {
-    "inscription_step1": "Inscription - Étape 1/3",
-    "inscription_step2": "Inscription - Étape 2/3",
-    "inscription_step3": "Inscription - Étape 3/3",
-    "bienvenue": "Bienvenue {{name}} !"
-  },
+  "help_message": "Je suis Armelle, votre assistante fiscale !\n\nCommandes disponibles :\n• menu - Retour au menu principal\n• * - Retour étape précédente\n• fr/en - Changer de langue\n• aide - Afficher cette aide",
   "main_menu": {
-    "welcome_back": "🎉 Configuration terminée !\n\nBonjour ! Je suis prête à vous aider avec vos questions fiscales.",
-    "subtitle": "Menu Principal",
-    "footer": "Prochainement : Calculs IGS, Télédéclarations, Conseils fiscaux..."
+    "welcome_back": "Bienvenue ! Que puis-je faire pour vous ?",
+    "subtitle": "Menu principal",
+    "footer": "Tapez \"menu\" pour les options | \"armelle\" pour l'assistant",
+    "ai_ready": "État initial",
+    "ai_response": "Comment puis-je vous aider aujourd'hui ?",
+    "ai_footer": "Tapez \"menu\" pour les options disponibles | \"en\" for English"
+  },
+  "subheader": {
+    "step_progress": "Étape {{current}}/{{total}}",
+    "validation_error": "Erreur saisie",
+    "error": "Erreur système"
+  },
+  "footer": {
+    "retry": "Corrigez et renvoyez votre réponse",
+    "workflow_complete": "Tapez \"menu\" pour les options | \"armelle\" pour l'assistant",
+    "onboarding_step1": "Veuillez entrer votre nom | \"en\" for English",
+    "onboarding_step2": "Type \"en\" for English",
+    "onboarding_step3": "Tapez \"*\" pour revenir ou \"en\" for English",
+    "workflow_navigation": "Tapez \"*\" pour revenir, \"menu\" pour le menu ou \"aide\" pour l'assistance",
+    "error_recovery": "Tapez \"menu\" pour revenir au menu principal"
+  },
+  "error": {
+    "system": "Erreur système : {{error}}"
   }
 }

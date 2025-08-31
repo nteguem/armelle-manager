@@ -1,23 +1,29 @@
-// app/bot/core/handlers/message_dispatcher.ts
 import BotMessage from '#models/bot/bot_message'
 import CommandManager from '#bot/core/managers/command_manager'
 import SessionManager from '#bot/core/managers/session_manager'
 import I18nManager from '#bot/core/managers/i18n_manager'
 import MessageBuilder from '#bot/core/managers/message_builder'
-import WorkflowManager from '#bot/core/workflow/workflow_manager'
+import { WorkflowEngine } from '#bot/core/workflow/engine/workflow_engine'
+import { MessagePresenter } from '#bot/core/workflow/presentation/message_presenter'
+import { WorkflowServiceRegistry } from '#bot/core/workflow/services/workflow_service_registry'
+import { TransitionResolver } from '#bot/core/workflow/engine/transition_resolver'
 import type {
   IncomingMessage,
   OutgoingMessage,
   SessionContext,
   ChannelAdapter,
 } from '#bot/types/bot_types'
+import type { WorkflowContext } from '#bot/core/workflow/engine/workflow_context'
 
 export default class MessageDispatcher {
   private commandManager: CommandManager
   private sessionManager: SessionManager
   private i18n: I18nManager
   private messageBuilder: MessageBuilder
-  private workflowManager: WorkflowManager
+  private workflowEngine: WorkflowEngine
+  private messagePresenter: MessagePresenter
+  private serviceRegistry: WorkflowServiceRegistry
+  private transitionResolver: TransitionResolver
   private adapters: Map<string, ChannelAdapter> = new Map()
 
   constructor() {
@@ -25,7 +31,10 @@ export default class MessageDispatcher {
     this.sessionManager = SessionManager.getInstance()
     this.i18n = I18nManager.getInstance()
     this.messageBuilder = new MessageBuilder()
-    this.workflowManager = WorkflowManager.getInstance()
+    this.workflowEngine = WorkflowEngine.getInstance()
+    this.messagePresenter = MessagePresenter.getInstance()
+    this.serviceRegistry = WorkflowServiceRegistry.getInstance()
+    this.transitionResolver = new TransitionResolver()
   }
 
   public registerAdapter(channel: string, adapter: ChannelAdapter): void {
@@ -65,7 +74,8 @@ export default class MessageDispatcher {
         return
       }
 
-      if (!sessionContext.isVerified) {
+      const botUser = await this.getBotUser(sessionContext.userId)
+      if (!botUser?.fullName) {
         await this.handleOnboardingRequired(sessionContext)
         return
       }
@@ -143,9 +153,9 @@ export default class MessageDispatcher {
 
   private async handleOnboardingRequired(sessionContext: SessionContext): Promise<void> {
     try {
-      const result = await this.workflowManager.startWorkflow(sessionContext, 'onboarding')
+      const result = await this.workflowEngine.startWorkflow(sessionContext, 'onboarding')
       await this.sessionManager.startWorkflow(sessionContext, 'onboarding', 'collect_name')
-      await this.handleWorkflowResult(result, sessionContext)
+      await this.processWorkflowResult(result, sessionContext)
     } catch (error) {
       console.error('❌ Error starting onboarding workflow:', error)
       const message = this.messageBuilder.build({
@@ -161,8 +171,22 @@ export default class MessageDispatcher {
     input: string
   ): Promise<void> {
     try {
-      const result = await this.workflowManager.processStep(sessionContext, input)
-      await this.handleWorkflowResult(result, sessionContext)
+      const workflowContext = this.createWorkflowContext(sessionContext)
+
+      if (workflowContext.variables.pending_selection) {
+        await this.handlePendingTaxpayerSelection(workflowContext, input)
+        return
+      }
+
+      if (workflowContext.currentStep === 'collect_name' && input.trim()) {
+        const botUserServiceModule = await import('#services/bot_user_service')
+        const BotUserService = botUserServiceModule.default
+        const botUserService = new BotUserService()
+        await botUserService.updateFullName(sessionContext.userId, input.trim())
+      }
+
+      const result = await this.workflowEngine.processStep(workflowContext, input)
+      await this.processWorkflowResult(result, workflowContext)
     } catch (error) {
       console.error('❌ Error processing workflow message:', error)
       const message = this.messageBuilder.build({
@@ -174,305 +198,304 @@ export default class MessageDispatcher {
     }
   }
 
-  private async handleWorkflowResult(result: any, sessionContext: SessionContext): Promise<void> {
+  private async processWorkflowResult(
+    result: any,
+    context: SessionContext | WorkflowContext
+  ): Promise<void> {
+    const sessionContext = 'session' in context ? context.session : context
+    const workflowContext =
+      'session' in context ? context : this.createWorkflowContext(sessionContext)
+
+    if (result.saveData) {
+      Object.assign(workflowContext.variables, result.saveData)
+      workflowContext.session.workflowData = workflowContext.variables
+    }
+
     switch (result.action) {
       case 'send_message':
-        await this.handleWorkflowSendMessage(result, sessionContext)
+        await this.handleSendMessage(result, workflowContext)
         break
       case 'call_service':
-        await this.handleWorkflowServiceCall(result, sessionContext)
+        await this.handleServiceCall(result, workflowContext)
         break
       case 'complete_workflow':
-        await this.handleWorkflowComplete(result, sessionContext)
+        await this.handleCompleteWorkflow(result, workflowContext)
         break
       case 'validation_error':
-        await this.handleWorkflowValidationError(result, sessionContext)
+        await this.handleValidationError(result, workflowContext)
         break
-      case 'service_error':
-        await this.handleWorkflowServiceError(result, sessionContext)
+      case 'transition':
+        await this.handleTransition(result, workflowContext)
         break
     }
   }
 
-  private async handleWorkflowSendMessage(
-    result: any,
-    sessionContext: SessionContext
-  ): Promise<void> {
+  private async handleSendMessage(result: any, context: WorkflowContext): Promise<void> {
     if (result.nextStep) {
-      await this.sessionManager.updateSessionContext(sessionContext, {
+      await this.sessionManager.updateSessionContext(context.session, {
         currentStep: result.nextStep,
-        workflowData: result.workflowData,
+        workflowData: context.variables,
       })
+      context.currentStep = result.nextStep
     }
 
-    if (result.shouldProcessNext && !result.messageKey && !result.menuOptions) {
-      if (result.nextStep) {
-        await this.processNextWorkflowStep(sessionContext)
-      }
-      return
-    }
-
-    let content: string
-    if (result.messageKey) {
-      content = this.i18n.t(result.messageKey, result.workflowData || {}, sessionContext.language)
-    } else {
-      content = result.content || 'Traitement en cours...'
-    }
-
-    if (result.menuOptions && result.menuOptions.length > 0) {
-      const optionsText = result.menuOptions
-        .map((opt: any) => {
-          const label = opt.labelKey.startsWith('workflows.')
-            ? this.i18n.t(opt.labelKey, {}, sessionContext.language)
-            : opt.labelKey
-          return `${opt.id}. ${label}`
-        })
-        .join('\n')
-      content += '\n\n' + optionsText
-    }
-
-    const message = this.messageBuilder.build({
-      content,
-      subheader: this.getWorkflowSubheader(sessionContext),
-      footer: this.getWorkflowFooter(sessionContext),
-      language: sessionContext.language,
-    })
-
-    await this.sendMessage(sessionContext, message)
+    const formattedMessage = this.messagePresenter.format(result, context)
+    await this.sendMessage(context.session, formattedMessage)
 
     if (result.shouldProcessNext && result.nextStep) {
-      await this.processNextWorkflowStep(sessionContext)
+      await this.processNextWorkflowStep(context)
     }
   }
 
-  // app/bot/core/handlers/message_dispatcher.ts - CORRIGER handleWorkflowServiceCall
-
-  private async handleWorkflowServiceCall(
-    result: any,
-    sessionContext: SessionContext
-  ): Promise<void> {
+  private async handleServiceCall(result: any, context: WorkflowContext): Promise<void> {
     try {
       const { service, method, params } = result.serviceCall
 
-      // DEBUG TEMPORAIRE
-      console.log('🔍 DEBUG Service Call:', {
-        service,
-        method,
-        params,
-        sessionUserId: sessionContext.userId,
-      })
-
       if (result.messageKey) {
-        const progressMessage = this.messageBuilder.build({
-          content: this.i18n.t(result.messageKey, params, sessionContext.language),
-          subheader: this.getWorkflowSubheader(sessionContext),
-          language: sessionContext.language,
-        })
-        await this.sendMessage(sessionContext, progressMessage)
+        const progressMessage = this.messagePresenter.format(result, context)
+        await this.sendMessage(context.session, progressMessage)
       }
 
-      const serviceResult = await this.callWorkflowService(service, method, params, sessionContext)
-      const nextResult = await this.workflowManager.handleServiceResult(
-        sessionContext,
-        serviceResult
-      )
-      await this.handleWorkflowResult(nextResult, sessionContext)
-    } catch (error) {
-      console.error('❌ Workflow service call failed:', error)
-      const errorResult = await this.workflowManager.handleServiceResult(
-        sessionContext,
-        null,
-        (error as Error).message
-      )
-      await this.handleWorkflowResult(errorResult, sessionContext)
-    }
-  }
+      const serviceParams = Object.values(params || {})
+      const serviceResult = await this.serviceRegistry.call(service, method, serviceParams)
 
-  private async handleWorkflowComplete(result: any, sessionContext: SessionContext): Promise<void> {
-    if (sessionContext.currentWorkflow === 'onboarding') {
-      await this.finalizeOnboarding(result, sessionContext)
-    }
+      const saveKey = result.saveAs || 'service_result'
+      context.variables[saveKey] = serviceResult
+      context.session.workflowData = context.variables
 
-    if (result.messageKey) {
-      const finalMessage = this.messageBuilder.build({
-        content: this.i18n.t(result.messageKey, result.workflowData || {}, sessionContext.language),
-        language: sessionContext.language,
-      })
-      await this.sendMessage(sessionContext, finalMessage)
-    }
-
-    await this.sessionManager.endWorkflow(sessionContext)
-    await this.displayMainMenu(sessionContext)
-  }
-
-  private async finalizeOnboarding(result: any, sessionContext: SessionContext): Promise<void> {
-    try {
-      const botUserServiceModule = await import('#services/bot_user_service')
-      const BotUserService = botUserServiceModule.default
-      const botUserService = new BotUserService()
-
-      if (result.workflowData?.user_name) {
-        await botUserService.updateFullName(sessionContext.userId, result.workflowData.user_name)
+      if (service === 'onboarding_service') {
+        await this.handleOnboardingServiceResult(serviceResult, context)
+        return
       }
 
-      if (result.workflowData?.selected_taxpayer) {
-        await botUserService.markAsVerified(sessionContext.userId)
+      const workflow = this.workflowEngine.getWorkflow(context.workflowId)
+      if (!workflow) throw new Error(`Workflow not found: ${context.workflowId}`)
+
+      const stepDef = workflow.steps[context.currentStep]
+      if (!stepDef || !stepDef.nextStep) {
+        await this.handleCompleteWorkflow(result, context)
+        return
+      }
+
+      const nextStep = this.transitionResolver.resolve(stepDef.nextStep, context.variables)
+      if (nextStep) {
+        context.currentStep = nextStep
+        context.session.currentStep = nextStep
+        const nextResult = await this.workflowEngine.processStep(context)
+        await this.processWorkflowResult(nextResult, context)
+      } else {
+        await this.handleCompleteWorkflow(result, context)
       }
     } catch (error) {
-      console.error('❌ Failed to finalize onboarding:', error)
+      console.error('❌ Service call failed:', error)
+      const errorMessage = this.messagePresenter.formatError(
+        "Erreur lors de l'appel du service",
+        context
+      )
+      await this.sendMessage(context.session, errorMessage)
     }
   }
 
-  private async handleWorkflowValidationError(
-    result: any,
-    sessionContext: SessionContext
+  private async handleOnboardingServiceResult(
+    serviceResult: any,
+    context: WorkflowContext
   ): Promise<void> {
-    const errorMessage = this.messageBuilder.build({
-      content: result.validationError || 'Erreur de validation',
-      subheader: this.getWorkflowSubheader(sessionContext),
-      footer: this.i18n.t('common.navigation.retry', {}, sessionContext.language),
-      language: sessionContext.language,
-    })
-    await this.sendMessage(sessionContext, errorMessage)
-  }
-
-  private async handleWorkflowServiceError(
-    result: any,
-    sessionContext: SessionContext
-  ): Promise<void> {
-    const errorMessage = this.messageBuilder.build({
-      content: result.validationError || 'Erreur technique',
-      subheader: this.getWorkflowSubheader(sessionContext),
-      footer: this.i18n.t('common.navigation.menu_return', {}, sessionContext.language),
-      language: sessionContext.language,
-    })
-    await this.sendMessage(sessionContext, errorMessage)
-  }
-
-  private async callWorkflowService(
-    serviceName: string,
-    methodName: string,
-    params: any,
-    sessionContext: SessionContext
-  ): Promise<any> {
-    switch (serviceName) {
-      case 'dgi_scraper':
-        const dgiServiceModule = await import('#services/dgi_scraper_service')
-        const DgiService = dgiServiceModule.default
-        const dgiInstance = new DgiService()
-
-        if (methodName === 'rechercherParNom') {
-          return await dgiInstance.rechercherParNom(params.nom)
-        }
-        throw new Error(`Unknown DGI method: ${methodName}`)
-
-      case 'taxpayer_service':
-        const taxpayerServiceModule = await import('#services/taxpayer_service')
-        const TaxpayerService = taxpayerServiceModule.default
-        const taxpayerInstance = new TaxpayerService()
-
-        if (methodName === 'createAndLinkWithAsyncEnrichment') {
-          // SOLUTION DÉFINITIVE : Récupérer directement depuis workflowData
-          const realBotUserId = sessionContext.userId
-          const realTaxpayerData = sessionContext.workflowData.selected_taxpayer
-
-          console.log('✅ FINAL Service call:', {
-            realBotUserId,
-            realTaxpayerData,
-            taxpayerName: realTaxpayerData?.nomRaisonSociale,
-          })
-
-          return await taxpayerInstance.createAndLinkWithAsyncEnrichment(
-            realBotUserId,
-            realTaxpayerData
-          )
-        }
-        throw new Error(`Unknown TaxpayerService method: ${methodName}`)
-
-      case 'bot_user_service':
-        const botUserServiceModule = await import('#services/bot_user_service')
-        const BotUserService = botUserServiceModule.default
-        const botUserInstance = new BotUserService()
-
-        if (methodName === 'markAsVerified') {
-          return await botUserInstance.markAsVerified(sessionContext.userId)
-        } else if (methodName === 'updateFullName') {
-          return await botUserInstance.updateFullName(sessionContext.userId, params.fullName)
-        }
-        throw new Error(`Unknown BotUserService method: ${methodName}`)
-
+    switch (serviceResult.messageType) {
+      case 'completion':
+        await this.finalizeOnboardingCleanup(context, serviceResult)
+        break
+      case 'selection':
+        await this.handleTaxpayerSelection(context, serviceResult)
+        break
+      case 'retry':
+        await this.handleRetryNameInput(context, serviceResult)
+        break
+      case 'error':
+        await this.finalizeOnboardingCleanup(context, serviceResult)
+        break
       default:
-        throw new Error(`Unknown service: ${serviceName}`)
+        await this.finalizeOnboardingCleanup(context, serviceResult)
     }
   }
-  private async processNextWorkflowStep(sessionContext: SessionContext): Promise<void> {
+
+  private async handleTaxpayerSelection(
+    context: WorkflowContext,
+    serviceResult: any
+  ): Promise<void> {
+    const { taxpayers } = serviceResult.data
+
+    const options = taxpayers
+      .map(
+        (tp: any, index: number) =>
+          `${index + 1}. ${tp.nomRaisonSociale} ${tp.prenomSigle} - ${tp.centre}`
+      )
+      .join('\n')
+
+    const selectionMessage = this.messageBuilder.build({
+      content:
+        this.i18n.t(serviceResult.messageKey, {}, context.session.language) +
+        '\n\n' +
+        options +
+        '\n0. Aucun de ces profils',
+      language: context.session.language,
+    })
+
+    await this.sendMessage(context.session, selectionMessage)
+
+    context.variables.pending_selection = serviceResult.data
+    context.session.workflowData = context.variables
+  }
+
+  private async handleRetryNameInput(context: WorkflowContext, serviceResult: any): Promise<void> {
+    const retryMessage = this.messageBuilder.build({
+      content: this.i18n.t(
+        serviceResult.messageKey,
+        serviceResult.messageParams || {},
+        context.session.language
+      ),
+      language: context.session.language,
+    })
+
+    await this.sendMessage(context.session, retryMessage)
+
+    context.currentStep = 'collect_name'
+    context.session.currentStep = 'collect_name'
+    await this.sessionManager.updateSessionContext(context.session, {
+      currentStep: 'collect_name',
+      workflowData: {},
+    })
+
+    const nextResult = await this.workflowEngine.processStep(context)
+    await this.processWorkflowResult(nextResult, context)
+  }
+
+  private async finalizeOnboardingCleanup(
+    context: WorkflowContext,
+    serviceResult: any
+  ): Promise<void> {
+    const finalMessage = this.messageBuilder.build({
+      subheader: this.i18n.t(
+        'workflows.onboarding.completion_subheader',
+        serviceResult.messageParams || {},
+        context.session.language
+      ),
+      content: this.i18n.t('workflows.onboarding.completion_content', {}, context.session.language),
+      footer: this.i18n.t('workflows.onboarding.completion_footer', {}, context.session.language),
+      language: context.session.language,
+    })
+
+    await this.sendMessage(context.session, finalMessage)
+
+    await this.sessionManager.endWorkflow(context.session)
+    await this.workflowEngine.completeWorkflow(context)
+  }
+
+  private async handlePendingTaxpayerSelection(
+    context: WorkflowContext,
+    input: string
+  ): Promise<void> {
+    const selectedIndex = Number.parseInt(input.trim())
+    const pendingData = context.variables.pending_selection
+
+    if (Number.isNaN(selectedIndex)) {
+      const errorMessage = this.messageBuilder.build({
+        content: this.i18n.t(
+          'workflows.onboarding.invalid_selection',
+          {},
+          context.session.language
+        ),
+        language: context.session.language,
+      })
+      await this.sendMessage(context.session, errorMessage)
+      return
+    }
+
+    const onboardingServiceModule = await import('#services/onboarding_service')
+    const OnboardingService = onboardingServiceModule.default
+    const onboardingService = new OnboardingService()
+
+    const linkResult = await onboardingService.linkSelectedTaxpayer(
+      pendingData.botUserId,
+      pendingData.userName,
+      selectedIndex,
+      pendingData.taxpayers
+    )
+
+    if (!linkResult.success) {
+      const errorMessage = this.messageBuilder.build({
+        content: this.i18n.t(
+          linkResult.messageKey,
+          linkResult.messageParams || {},
+          context.session.language
+        ),
+        language: context.session.language,
+      })
+      await this.sendMessage(context.session, errorMessage)
+      return
+    }
+
+    await this.finalizeOnboardingCleanup(context, linkResult)
+  }
+
+  private async handleCompleteWorkflow(result: any, context: WorkflowContext): Promise<void> {
+    if (result.messageKey) {
+      const finalMessage = this.messagePresenter.formatCompletion(context, context.variables)
+      await this.sendMessage(context.session, finalMessage)
+    }
+
+    await this.sessionManager.endWorkflow(context.session)
+    await this.workflowEngine.completeWorkflow(context)
+  }
+
+  private async handleValidationError(result: any, context: WorkflowContext): Promise<void> {
+    const errorMessage = this.messagePresenter.formatError(
+      result.error || 'Erreur de validation',
+      context
+    )
+    await this.sendMessage(context.session, errorMessage)
+  }
+
+  private async handleTransition(result: any, context: WorkflowContext): Promise<void> {
+    if (result.nextStep) {
+      context.currentStep = result.nextStep
+      context.session.currentStep = result.nextStep
+
+      if (result.shouldProcessNext) {
+        await this.processNextWorkflowStep(context)
+      }
+    }
+  }
+
+  private createWorkflowContext(sessionContext: SessionContext): WorkflowContext {
+    return {
+      workflowId: sessionContext.currentWorkflow!,
+      currentStep: sessionContext.currentStep!,
+      session: sessionContext,
+      variables: sessionContext.workflowData || {},
+      execution: {
+        startedAt: new Date(),
+        stepStartedAt: new Date(),
+        retryCount: 0,
+      },
+    }
+  }
+
+  private async processNextWorkflowStep(context: WorkflowContext): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 500))
 
     try {
-      const result = await this.workflowManager.processStep(sessionContext)
-      await this.handleWorkflowResult(result, sessionContext)
+      const result = await this.workflowEngine.processStep(context)
+      await this.processWorkflowResult(result, context)
     } catch (error) {
       console.error('❌ Error processing next workflow step:', error)
     }
   }
 
-  // MODIFIER getWorkflowSubheader pour progression exacte
-
-  private getWorkflowSubheader(sessionContext: SessionContext): string {
-    if (!sessionContext.currentWorkflow || !sessionContext.currentStep) {
-      return ''
-    }
-
-    if (sessionContext.currentWorkflow === 'onboarding') {
-      switch (sessionContext.currentStep) {
-        case 'collect_name':
-          return this.i18n.t('common.subheaders.inscription_step1', {}, sessionContext.language)
-        case 'search_dgi':
-          return this.i18n.t('common.subheaders.inscription_step2', {}, sessionContext.language)
-        case 'confirm_single':
-        case 'select_multiple':
-          return this.i18n.t('common.subheaders.inscription_step3', {}, sessionContext.language)
-        default:
-          return this.i18n.t(
-            'common.subheaders.bienvenue',
-            { name: sessionContext.workflowData.user_name },
-            sessionContext.language
-          )
-      }
-    }
-
-    const workflow = this.workflowManager.getWorkflow(sessionContext.currentWorkflow)
-    return workflow ? workflow.name : sessionContext.currentWorkflow
-  }
-
-  // MODIFIER getWorkflowFooter pour footers contextuels
-
-  private getWorkflowFooter(sessionContext: SessionContext): string {
-    if (!sessionContext.currentWorkflow || !sessionContext.currentStep) {
-      return this.i18n.t('common.navigation.menu_return', {}, sessionContext.language)
-    }
-
-    if (sessionContext.currentWorkflow === 'onboarding') {
-      switch (sessionContext.currentStep) {
-        case 'collect_name':
-          return this.i18n.t('common.navigation.onboarding_step1', {}, sessionContext.language)
-        case 'search_dgi':
-          return this.i18n.t('common.navigation.onboarding_step2', {}, sessionContext.language)
-        case 'confirm_single':
-        case 'select_multiple':
-          return this.i18n.t('common.navigation.onboarding_step3', {}, sessionContext.language)
-        default:
-          return this.i18n.t('common.navigation.onboarding_final', {}, sessionContext.language)
-      }
-    }
-
-    return this.i18n.t('common.navigation.menu_return', {}, sessionContext.language)
-  }
-
   private async handleMenuNavigation(sessionContext: SessionContext, input: string): Promise<void> {
     const message = this.messageBuilder.build({
-      content: this.i18n.t('errors.menu.invalid_choice', {}, sessionContext.language),
-      footer: this.i18n.t('common.navigation.select_option', {}, sessionContext.language),
+      subheader: this.i18n.t('common.main_menu.ai_ready', {}, sessionContext.language),
+      content: this.i18n.t('common.main_menu.ai_response', {}, sessionContext.language),
+      footer: this.i18n.t('common.main_menu.footer', {}, sessionContext.language),
       language: sessionContext.language,
     })
     await this.sendMessage(sessionContext, message)
@@ -525,6 +548,12 @@ export default class MessageDispatcher {
     return await BotSession.findActiveSession(sessionContext.channel, sessionContext.channelUserId)
   }
 
+  private async getBotUser(userId: string): Promise<any> {
+    const botUserModule = await import('#models/bot/bot_user')
+    const BotUser = botUserModule.default
+    return await BotUser.find(userId)
+  }
+
   private async handleError(
     incomingMessage: IncomingMessage,
     error: Error,
@@ -539,8 +568,9 @@ export default class MessageDispatcher {
   private async redisplayCurrentWorkflowStep(sessionContext: SessionContext): Promise<void> {
     if (sessionContext.currentWorkflow) {
       try {
-        const result = await this.workflowManager.processStep(sessionContext)
-        await this.handleWorkflowResult(result, sessionContext)
+        const workflowContext = this.createWorkflowContext(sessionContext)
+        const result = await this.workflowEngine.processStep(workflowContext)
+        await this.processWorkflowResult(result, workflowContext)
       } catch (error) {
         console.error('❌ Error redisplaying workflow step:', error)
       }

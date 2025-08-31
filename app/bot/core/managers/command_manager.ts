@@ -191,7 +191,7 @@ export default class CommandManager {
     const language = context.language
 
     if (config.workflowOnly && !context.currentWorkflow) {
-      return this.i18n.t('errors.commands.workflow_only', {}, language)
+      return this.i18n.t('errors.commands.not_allowed_in_context', {}, language)
     }
 
     if (config.blockedInWorkflows?.includes(context.currentWorkflow || '')) {

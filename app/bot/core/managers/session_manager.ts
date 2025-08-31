@@ -142,12 +142,35 @@ export default class SessionManager {
   /**
    * Termine un workflow pour une session
    */
+  // Dans SessionManager.ts - remplacer la méthode endWorkflow
+
   public async endWorkflow(sessionContext: SessionContext): Promise<void> {
+    // Mettre à jour la session en base
+    const botSession = await this.getBotSession(sessionContext)
+    if (botSession) {
+      await botSession.endWorkflow()
+    }
+
+    // Nettoyer complètement le contexte session
     await this.updateSessionContext(sessionContext, {
       currentWorkflow: undefined,
       currentStep: undefined,
       workflowData: {},
     })
+
+    // Nettoyer le cache
+    const cacheKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
+    const cachedSession = this.sessionCache.get(cacheKey)
+    if (cachedSession) {
+      cachedSession.currentWorkflow = undefined
+      cachedSession.currentStep = undefined
+      cachedSession.workflowData = {}
+      this.sessionCache.set(cacheKey, cachedSession)
+    }
+  }
+
+  private async getBotSession(sessionContext: SessionContext): Promise<any> {
+    return await BotSession.findActiveSession(sessionContext.channel, sessionContext.channelUserId)
   }
 
   /**

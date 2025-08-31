@@ -3,7 +3,9 @@
     "required": "This field is required"
   },
   "commands": {
-    "not_allowed_in_context": "This command is not available in the current context"
+    "not_allowed_in_context": "This command is not available in the current context",
+    "blocked_in_workflow": "This command is blocked in the {{workflow}} workflow",
+    "menu_blocked_onboarding": "The menu is not accessible during registration"
   },
   "workflow": {
     "start_failed": "Unable to start the process. Please try again.",

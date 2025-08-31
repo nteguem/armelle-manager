@@ -3,9 +3,18 @@ import CommandManager from '#bot/core/managers/command_manager'
 import SessionManager from '#bot/core/managers/session_manager'
 import I18nManager from '#bot/core/managers/i18n_manager'
 import WhatsAppAdapter from '#bot/core/adapters/whatsapp_adapter'
+import { WorkflowRegistry } from '#bot/core/workflow/registry/workflow_registry'
+import { WorkflowServiceRegistry } from '#bot/core/workflow/services/workflow_service_registry'
+import {
+  OnboardingWorkflow,
+  OnboardingProgressConfig,
+} from '#bot/core/workflow/definitions/onboarding.workflow'
+import DgiScraperService from '#services/dgi_scraper_service'
+import TaxpayerService from '#services/taxpayer_service'
+import BotUserService from '#services/bot_user_service'
 import botConfig from '#config/bot'
 import type { ChannelAdapter, IncomingMessage } from '#bot/types/bot_types'
-import WorkflowManager from '#bot/core/workflow/workflow_manager'
+import OnboardingService from './onboarding_service.js'
 
 export default class BotService {
   private messageDispatcher: MessageDispatcher
@@ -16,9 +25,6 @@ export default class BotService {
     this.messageDispatcher = new MessageDispatcher()
   }
 
-  /**
-   * Initialise et démarre le bot
-   */
   public async start(): Promise<void> {
     if (this.isStarted) {
       console.log('🤖 Bot is already started')
@@ -28,16 +34,10 @@ export default class BotService {
     try {
       console.log('🚀 Starting Armelle Bot...')
 
-      // 1. Initialiser les managers
       await this.initializeManagers()
-
-      // 2. Configurer les adaptateurs
+      await this.initializeWorkflowSystem()
       await this.setupAdapters()
-
-      // 3. Démarrer les adaptateurs activés
       await this.startAdapters()
-
-      // 4. Configurer le nettoyage automatique
       this.setupCleanupTasks()
 
       this.isStarted = true
@@ -48,9 +48,6 @@ export default class BotService {
     }
   }
 
-  /**
-   * Arrête le bot proprement
-   */
   public async stop(): Promise<void> {
     if (!this.isStarted) {
       console.log('🤖 Bot is not running')
@@ -60,7 +57,6 @@ export default class BotService {
     try {
       console.log('🛑 Stopping Armelle Bot...')
 
-      // Arrêter tous les adaptateurs
       for (const [channel, adapter] of this.adapters) {
         console.log(`📱 Stopping ${channel} adapter...`)
         await adapter.stop()
@@ -74,16 +70,10 @@ export default class BotService {
     }
   }
 
-  /**
-   * Vérifie si le bot est démarré
-   */
   public isRunning(): boolean {
     return this.isStarted
   }
 
-  /**
-   * Traite un message entrant (pour tests ou API)
-   */
   public async processMessage(message: IncomingMessage): Promise<void> {
     if (!this.isStarted) {
       throw new Error('Bot must be started before processing messages')
@@ -92,31 +82,47 @@ export default class BotService {
     await this.messageDispatcher.handleIncomingMessage(message)
   }
 
-  /**
-   * Initialise tous les managers singleton
-   */
   private async initializeManagers(): Promise<void> {
     console.log('⚙️ Initializing managers...')
 
-    // I18nManager - doit être initialisé en premier
     const i18nManager = I18nManager.getInstance()
     await i18nManager.initialize()
 
-    // CommandManager - maintenant avec initialisation asynchrone
     const commandManager = CommandManager.getInstance()
     await commandManager.initialize()
 
-    // Pas besoin d'initialisation asynchrone
-    const workflowManager = WorkflowManager.getInstance()
-    await workflowManager.initialize()
-    // SessionManager
     const sessionManager = SessionManager.getInstance()
+
     console.log('✅ All managers initialized')
   }
 
-  /**
-   * Configure les adaptateurs selon la configuration
-   */
+  private async initializeWorkflowSystem(): Promise<void> {
+    console.log('🔧 Initializing workflow system...')
+
+    const serviceRegistry = WorkflowServiceRegistry.getInstance()
+
+    serviceRegistry.register('dgi_scraper', new DgiScraperService())
+    serviceRegistry.register('taxpayer_service', new TaxpayerService())
+    serviceRegistry.register('bot_user_service', new BotUserService())
+
+    serviceRegistry.register('onboarding_service', new OnboardingService())
+
+    console.log('✅ Workflow services registered')
+
+    const workflowRegistry = WorkflowRegistry.getInstance()
+
+    workflowRegistry.register(OnboardingWorkflow, {
+      version: '2.0.0',
+      description: "Processus d'inscription simplifié avec service centralisé",
+      progressConfig: OnboardingProgressConfig,
+    })
+
+    console.log('✅ Workflows registered')
+
+    const stats = workflowRegistry.getStats()
+    console.log(`✅ Workflow system initialized - ${stats.totalWorkflows} workflow(s) available`)
+  }
+
   private async setupAdapters(): Promise<void> {
     console.log('🔌 Setting up channel adapters...')
 
@@ -139,7 +145,6 @@ export default class BotService {
       }
     }
 
-    // Enregistrer les adaptateurs dans le dispatcher
     for (const [channel, adapter] of this.adapters) {
       this.messageDispatcher.registerAdapter(channel, adapter)
     }
@@ -147,32 +152,23 @@ export default class BotService {
     console.log(`✅ ${this.adapters.size} adapter(s) configured`)
   }
 
-  /**
-   * Démarre tous les adaptateurs configurés
-   */
   private async startAdapters(): Promise<void> {
     console.log('🚀 Starting channel adapters...')
 
     for (const [channel, adapter] of this.adapters) {
       try {
-        // Configurer les callbacks
         adapter.setCallbacks({
           onMessageReceived: this.handleIncomingMessage.bind(this),
         })
 
-        // Démarrer l'adaptateur
         await adapter.start()
         console.log(`✅ ${channel} adapter started`)
       } catch (error) {
         console.error(`❌ Failed to start ${channel} adapter:`, error)
-        // Continue avec les autres adaptateurs
       }
     }
   }
 
-  /**
-   * Gestionnaire pour les messages entrants des adaptateurs
-   */
   private async handleIncomingMessage(message: IncomingMessage): Promise<void> {
     try {
       await this.messageDispatcher.handleIncomingMessage(message)
@@ -181,9 +177,6 @@ export default class BotService {
     }
   }
 
-  /**
-   * Configure les tâches de nettoyage automatique
-   */
   private setupCleanupTasks(): void {
     const cleanupInterval = botConfig.sessions.cleanupIntervalHours * 60 * 60 * 1000
 

@@ -343,6 +343,7 @@ export default class DGIScraperService {
         success: false,
         message: 'Erreur technique lors de la recherche',
         data: null,
+        type: 'erreur',
       }
     } finally {
       if (page) await this.releasePooledPage(page)
