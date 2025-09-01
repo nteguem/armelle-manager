@@ -2,7 +2,7 @@
   "onboarding": {
     "name": "Inscription",
     "collect_name": "👋 Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
-    "searching_dgi": "Vérification de votre identité dans la base DGI.\nVeuillez patienter...",
+    "searching_dgi": "Vérification de votre identité dans le fichier national des contribuables.\nVeuillez patienter...",
     "selection_menu": "Plusieurs profils correspondent à votre nom :\n\nVeuillez sélectionner le vôtre :",
     "too_many_results": "Trop de résultats trouvés ({{count}}).\n\nVeuillez préciser votre nom complet.",
     "invalid_selection": "Sélection invalide. Veuillez choisir une option proposée.",
@@ -10,7 +10,6 @@
     "completion_content": "Comment puis-je vous aider aujourd'hui ?",
     "completion_footer": "Tapez \"menu\" pour les options disponibles | \"en\" for English",
     "completion_name_only": "Inscription réussie avec votre nom uniquement.",
-    "completion_existing_taxpayer": "Votre profil contribuable (NIU: {{niu}}) a été lié avec succès.",
     "completion_new_taxpayer": "Votre profil contribuable a été créé et lié avec succès.",
     "complete": "Inscription terminée avec succès !"
   }

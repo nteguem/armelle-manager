@@ -2,7 +2,7 @@
   "onboarding": {
     "name": "Registration",
     "collect_name": "👋 Hello! I'm Armelle, your Cameroonian tax assistant.\nI can help you calculate your IGS, make your e-declarations, respect your deadlines and answer your general tax questions!\n\nTo get started, enter Name/Company name.\nExample: MBARGA FOUDA / ABC EXPRESS",
-    "searching_dgi": "Verifying your identity in the DGI database.\nPlease wait...",
+    "searching_dgi": "Verifying your identity in the National Taxpayers Registry.\nPlease wait...",
     "selection_menu": "Multiple profiles match your name:\n\nPlease select yours:",
     "too_many_results": "Too many results found ({{count}}).\n\nPlease specify your full name.",
     "invalid_selection": "Invalid selection. Please choose a proposed option.",
@@ -10,7 +10,6 @@
     "completion_content": "How can I help you today?",
     "completion_footer": "Type \"menu\" for available options | \"fr\" pour Français",
     "completion_name_only": "Registration successful with your name only.",
-    "completion_existing_taxpayer": "Your taxpayer profile (NIU: {{niu}}) has been successfully linked.",
     "completion_new_taxpayer": "Your taxpayer profile has been created and linked successfully.",
     "complete": "Registration completed successfully!"
   }

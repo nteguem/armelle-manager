@@ -16,6 +16,7 @@ export const OnboardingWorkflow: WorkflowDefinition = {
       type: 'input',
       config: {
         messageKey: 'workflows.onboarding.collect_name',
+        updateUserName: true, // Convention générique pour mise à jour nom utilisateur
         validation: {
           required: true,
           minLength: 2,

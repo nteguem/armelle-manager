@@ -1,4 +1,4 @@
-import MessageDispatcher from '#bot/core/handlers/message_dispatcher'
+import MessageRouter from '#bot/core/routing/message_router'
 import CommandManager from '#bot/core/managers/command_manager'
 import SessionManager from '#bot/core/managers/session_manager'
 import I18nManager from '#bot/core/managers/i18n_manager'
@@ -17,12 +17,12 @@ import type { ChannelAdapter, IncomingMessage } from '#bot/types/bot_types'
 import OnboardingService from './onboarding_service.js'
 
 export default class BotService {
-  private messageDispatcher: MessageDispatcher
+  private messageRouter: MessageRouter
   private adapters: Map<string, ChannelAdapter> = new Map()
   private isStarted: boolean = false
 
   constructor() {
-    this.messageDispatcher = new MessageDispatcher()
+    this.messageRouter = new MessageRouter()
   }
 
   public async start(): Promise<void> {
@@ -79,7 +79,7 @@ export default class BotService {
       throw new Error('Bot must be started before processing messages')
     }
 
-    await this.messageDispatcher.handleIncomingMessage(message)
+    await this.messageRouter.handleIncomingMessage(message)
   }
 
   private async initializeManagers(): Promise<void> {
@@ -146,7 +146,7 @@ export default class BotService {
     }
 
     for (const [channel, adapter] of this.adapters) {
-      this.messageDispatcher.registerAdapter(channel, adapter)
+      this.messageRouter.registerAdapter(channel, adapter)
     }
 
     console.log(`✅ ${this.adapters.size} adapter(s) configured`)
@@ -171,7 +171,7 @@ export default class BotService {
 
   private async handleIncomingMessage(message: IncomingMessage): Promise<void> {
     try {
-      await this.messageDispatcher.handleIncomingMessage(message)
+      await this.messageRouter.handleIncomingMessage(message)
     } catch (error) {
       console.error('❌ Error handling incoming message:', error)
     }

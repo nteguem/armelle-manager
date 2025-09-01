@@ -13,12 +13,12 @@
   },
   "help_message": "Je suis Armelle, votre assistante fiscale !\n\nCommandes disponibles :\n• menu - Retour au menu principal\n• * - Retour étape précédente\n• fr/en - Changer de langue\n• aide - Afficher cette aide",
   "main_menu": {
-    "welcome_back": "Bienvenue ! Que puis-je faire pour vous ?",
     "subtitle": "Menu principal",
     "footer": "Tapez \"menu\" pour les options | \"armelle\" pour l'assistant",
-    "ai_ready": "État initial",
-    "ai_response": "Comment puis-je vous aider aujourd'hui ?",
-    "ai_footer": "Tapez \"menu\" pour les options disponibles | \"en\" for English"
+    "profile_complete_subheader": "✅ Profil configuré - {{userName}}, NIU: {{niu}}",
+    "profile_partial_subheader": "⚠️ Profil partiel - {{userName}}",
+    "welcome_with_name": "Bienvenue ! Que puis-je faire pour vous ?",
+    "welcome_partial_profile": "Bienvenue ! Que puis-je faire pour vous ?\n\nVotre profil n'est pas lié à un contribuable DGI. Vous pouvez créer votre dossier contribuable ou vous relier à un profil existant en tapant \"profil\"."
   },
   "subheader": {
     "step_progress": "Étape {{current}}/{{total}}",

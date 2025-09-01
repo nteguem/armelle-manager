@@ -1,13 +1,8 @@
-// app/bot/core/workflow/registry/workflow_registry.ts
-
 import type { WorkflowDefinition } from '../engine/workflow_context.js'
 import { WorkflowEngine } from '../engine/workflow_engine.js'
-import { ProgressTracker } from '../presentation/progress_tracker.js'
+import { WorkflowProgressConfigs } from '#config/workflows'
 import logger from '@adonisjs/core/services/logger'
 
-/**
- * Métadonnées workflow pour registre
- */
 interface WorkflowMetadata {
   definition: WorkflowDefinition
   registeredAt: Date
@@ -15,19 +10,13 @@ interface WorkflowMetadata {
   description?: string
 }
 
-/**
- * Registre central des workflows
- * Catalogue et initialise tous workflows disponibles
- */
 export class WorkflowRegistry {
   private static instance: WorkflowRegistry
   private workflows: Map<string, WorkflowMetadata> = new Map()
   private engine: WorkflowEngine
-  private progressTracker: ProgressTracker
 
   private constructor() {
     this.engine = WorkflowEngine.getInstance()
-    this.progressTracker = ProgressTracker.getInstance()
   }
 
   public static getInstance(): WorkflowRegistry {
@@ -37,28 +26,19 @@ export class WorkflowRegistry {
     return WorkflowRegistry.instance
   }
 
-  /**
-   * Enregistre un workflow dans le système
-   */
   public register(
     definition: WorkflowDefinition,
     options: {
       version?: string
       description?: string
-      progressConfig?: {
-        totalSteps: number
-        prefix: string
-        stepMapping: Record<string, number>
-      }
+      progressConfig?: any // Ignoré - utilise config externe
     } = {}
   ): void {
-    // Valider définition workflow
     const validation = this.validateDefinition(definition)
     if (!validation.valid) {
       throw new Error(`Invalid workflow definition for ${definition.id}: ${validation.error}`)
     }
 
-    // Enregistrer dans le registre
     this.workflows.set(definition.id, {
       definition,
       registeredAt: new Date(),
@@ -66,12 +46,14 @@ export class WorkflowRegistry {
       description: options.description,
     })
 
-    // Enregistrer dans le moteur
     this.engine.registerWorkflow(definition)
 
-    // Enregistrer progression si fournie
-    if (options.progressConfig) {
-      this.progressTracker.registerWorkflowProgress(definition.id, options.progressConfig)
+    // Vérifier si config de progression existe
+    const progressConfig = WorkflowProgressConfigs[definition.id]
+    if (progressConfig) {
+      logger.info(`Workflow registered with progress config: ${definition.id}`)
+    } else {
+      logger.warn(`No progress config found for workflow: ${definition.id}`)
     }
 
     logger.info(`Workflow registered: ${definition.id}`, {
@@ -80,24 +62,15 @@ export class WorkflowRegistry {
     })
   }
 
-  /**
-   * Récupère métadonnées workflow
-   */
   public getWorkflowMetadata(workflowId: string): WorkflowMetadata | undefined {
     return this.workflows.get(workflowId)
   }
 
-  /**
-   * Récupère définition workflow
-   */
   public getWorkflowDefinition(workflowId: string): WorkflowDefinition | undefined {
     const metadata = this.workflows.get(workflowId)
     return metadata?.definition
   }
 
-  /**
-   * Liste tous workflows enregistrés
-   */
   public listWorkflows(): {
     id: string
     name: string
@@ -105,6 +78,7 @@ export class WorkflowRegistry {
     description?: string
     stepsCount: number
     registeredAt: Date
+    hasProgressConfig: boolean
   }[] {
     return Array.from(this.workflows.entries()).map(([id, metadata]) => ({
       id,
@@ -113,19 +87,14 @@ export class WorkflowRegistry {
       description: metadata.description,
       stepsCount: Object.keys(metadata.definition.steps).length,
       registeredAt: metadata.registeredAt,
+      hasProgressConfig: !!WorkflowProgressConfigs[id],
     }))
   }
 
-  /**
-   * Vérifie si workflow existe
-   */
   public hasWorkflow(workflowId: string): boolean {
     return this.workflows.has(workflowId)
   }
 
-  /**
-   * Désenregistre workflow
-   */
   public unregister(workflowId: string): boolean {
     const removed = this.workflows.delete(workflowId)
     if (removed) {
@@ -134,36 +103,27 @@ export class WorkflowRegistry {
     return removed
   }
 
-  /**
-   * Valide définition workflow
-   */
   private validateDefinition(definition: WorkflowDefinition): { valid: boolean; error?: string } {
-    // ID requis
     if (!definition.id || typeof definition.id !== 'string') {
       return { valid: false, error: 'Workflow ID is required and must be string' }
     }
 
-    // Nom requis
     if (!definition.name || typeof definition.name !== 'string') {
       return { valid: false, error: 'Workflow name is required and must be string' }
     }
 
-    // StartStep requis
     if (!definition.startStep || typeof definition.startStep !== 'string') {
       return { valid: false, error: 'Workflow startStep is required and must be string' }
     }
 
-    // Steps requis
     if (!definition.steps || typeof definition.steps !== 'object') {
       return { valid: false, error: 'Workflow steps are required and must be object' }
     }
 
-    // StartStep doit exister dans steps
     if (!definition.steps[definition.startStep]) {
       return { valid: false, error: `StartStep '${definition.startStep}' not found in steps` }
     }
 
-    // Valider chaque étape
     for (const [stepId, stepDef] of Object.entries(definition.steps)) {
       if (!stepDef.id || !stepDef.type) {
         return { valid: false, error: `Step '${stepId}' missing required id or type` }
@@ -173,9 +133,6 @@ export class WorkflowRegistry {
     return { valid: true }
   }
 
-  /**
-   * Statistiques du registre
-   */
   public getStats(): {
     totalWorkflows: number
     workflowsByStepCount: Record<string, number>

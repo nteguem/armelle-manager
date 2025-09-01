@@ -124,12 +124,6 @@ export default class OnboardingService {
       if (existingTaxpayer) {
         await this.taxpayerService.linkBotUserToTaxpayer(botUserId, existingTaxpayer.id, 'owner')
         await this.botUserService.markAsVerified(botUserId)
-
-        return {
-          success: true,
-          messageKey: 'workflows.onboarding.completion_existing_taxpayer',
-          messageParams: { name: userName, niu: selectedTaxpayer.niu },
-        }
       }
 
       await this.taxpayerService.createAndLinkWithAsyncEnrichment(botUserId, selectedTaxpayer)
@@ -146,6 +140,67 @@ export default class OnboardingService {
         success: true,
         messageKey: 'workflows.onboarding.completion_name_only',
         messageParams: { name: userName },
+      }
+    }
+  }
+
+  // Nouvelle méthode générique (convention)
+  async handleSelection(
+    botUserId: string,
+    userName: string,
+    selectedIndex: number,
+    taxpayers: any[]
+  ): Promise<{
+    success: boolean
+    messageKey: string
+    messageParams?: Record<string, any>
+    subheaderKey?: string
+    footerKey?: string
+  }> {
+    try {
+      if (selectedIndex === 0) {
+        return {
+          success: true,
+          messageKey: 'workflows.onboarding.completion_name_only',
+          messageParams: { name: userName },
+          subheaderKey: 'workflows.onboarding.completion_subheader',
+          footerKey: 'workflows.onboarding.completion_footer',
+        }
+      }
+
+      const selectedTaxpayer = taxpayers[selectedIndex - 1]
+      if (!selectedTaxpayer) {
+        return {
+          success: false,
+          messageKey: 'workflows.onboarding.invalid_selection',
+        }
+      }
+
+      const existingTaxpayer = await this.taxpayerService.findTaxpayerByNIU(selectedTaxpayer.niu)
+
+      if (existingTaxpayer) {
+        await this.taxpayerService.linkBotUserToTaxpayer(botUserId, existingTaxpayer.id, 'owner')
+        await this.botUserService.markAsVerified(botUserId)
+      }
+
+      await this.taxpayerService.createAndLinkWithAsyncEnrichment(botUserId, selectedTaxpayer)
+      await this.botUserService.markAsVerified(botUserId)
+
+      return {
+        success: true,
+        messageKey: 'workflows.onboarding.completion_new_taxpayer',
+        messageParams: { name: userName },
+        subheaderKey: 'workflows.onboarding.completion_subheader',
+        footerKey: 'workflows.onboarding.completion_footer',
+      }
+    } catch (error) {
+      console.error('Error in handleSelection:', error)
+      return {
+        success: true,
+        messageKey: 'workflows.onboarding.completion_name_only',
+        messageParams: { name: userName },
+        subheaderKey: 'workflows.onboarding.completion_subheader',
+        footerKey: 'workflows.onboarding.completion_footer',
       }
     }
   }

@@ -13,12 +13,12 @@
   },
   "help_message": "I'm Armelle, your tax assistant!\n\nAvailable commands:\n• menu - Return to main menu\n• * - Go back previous step\n• fr/en - Change language\n• help - Show this help",
   "main_menu": {
-    "welcome_back": "Welcome! What can I do for you?",
     "subtitle": "Main menu",
-    "footer": "Type \"menu\" for options | \"armelle\" for the assistant",
-    "ai_ready": "Initial state",
-    "ai_response": "How can I help you today?",
-    "ai_footer": "Type \"menu\" for available options | \"fr\" pour le français"
+    "footer": "Type \"menu\" for options | \"armelle\" for assistant",
+    "profile_complete_subheader": "✅ Profile configured - {{userName}}, NIU: {{niu}}",
+    "profile_partial_subheader": "⚠️ Partial profile - {{userName}}",
+    "welcome_with_name": "Welcome ! How can I help you?",
+    "welcome_partial_profile": "Welcome! How can I help you?\n\nYour profile is not linked to a DGI taxpayer. You can create your taxpayer file or link to an existing profile by typing \"profile\"."
   },
   "subheader": {
     "step_progress": "Step {{current}}/{{total}}",
