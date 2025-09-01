@@ -224,6 +224,11 @@ export default class extends BaseSeeder {
           displayName: 'Statistiques bot users',
           description: 'Voir les statistiques des utilisateurs du bot',
         },
+        {
+          name: 'botuser.messages',
+          displayName: 'Voir les messages',
+          description: 'Voir les messages des utilisateurs du bot',
+        },
       ],
       reports: [
         {
@@ -342,6 +347,7 @@ export default class extends BaseSeeder {
         'registration.create',
         'payment.list',
         'payment.view',
+        'botuser.messages',
         'payment.create',
         'botuser.list',
         'botuser.view',
@@ -357,6 +363,7 @@ export default class extends BaseSeeder {
         'registration.list',
         'registration.view',
         'payment.list',
+        'botuser.messages',
         'payment.view',
         'botuser.list',
         'botuser.view',

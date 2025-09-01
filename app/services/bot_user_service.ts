@@ -1,6 +1,7 @@
 import { DateTime } from 'luxon'
 import db from '@adonisjs/lucid/services/db'
 import BotUser from '#models/bot/bot_user'
+import BotMessage from '#models/bot/bot_message'
 import Taxpayer from '#models/rest-api/tax_payer'
 import BotUserTaxpayer from '#models/bot/bot_user_taxpayers'
 
@@ -135,6 +136,134 @@ export default class BotUserService {
     }
 
     return await query.paginate(page, limit)
+  }
+
+  /**
+   * Récupérer les messages d'un bot user avec pagination et filtres
+   */
+
+  async getBotUserMessages(
+    botUserId: string,
+    filters: any = {},
+    pagination: any = {}
+  ): Promise<any> {
+    const page = pagination.page || 1
+    const limit = Math.min(pagination.limit || 50, 100)
+
+    let query = BotMessage.query()
+      .where('botUserId', botUserId)
+      .select('id', 'direction', 'content', 'messageType', 'createdAt')
+
+    // Filtres existants
+    if (filters.direction) {
+      query = query.where('direction', filters.direction)
+    }
+
+    if (filters.messageType) {
+      query = query.where('messageType', filters.messageType)
+    }
+
+    if (filters.dateFrom) {
+      query = query.where('createdAt', '>=', filters.dateFrom)
+    }
+
+    if (filters.dateTo) {
+      query = query.where('createdAt', '<=', filters.dateTo)
+    }
+
+    if (filters.search) {
+      query = query.whereILike('content', `%${filters.search}%`)
+    }
+
+    // Tri par date (plus ancien en premier pour conversation logique)
+    const sortBy = filters.sort_by || 'created_at'
+    const sortOrder = filters.sort_order || 'asc'
+
+    if (sortBy === 'created_at') {
+      query = query.orderBy(sortBy, sortOrder)
+    }
+
+    const result = await query.paginate(page, limit)
+    const paginatedData = result.toJSON()
+
+    // Structure simple pour le front
+    const messages = paginatedData.data.map((message: any) => ({
+      id: message.id,
+      direction: message.direction, // 'in' = utilisateur, 'out' = bot
+      content: message.content,
+      messageType: message.messageType,
+      timestamp: message.createdAt,
+      isFromUser: message.direction === 'in',
+      isFromBot: message.direction === 'out',
+    }))
+
+    return {
+      data: messages,
+      meta: {
+        current_page: paginatedData.meta.currentPage,
+        total_pages: paginatedData.meta.lastPage,
+        per_page: paginatedData.meta.perPage,
+        total_items: paginatedData.meta.total,
+      },
+    }
+  }
+
+  /**
+   * Obtenir les statistiques des messages d'un bot user
+   */
+  async getBotUserMessageStats(botUserId: string): Promise<any> {
+    const totalMessages = await BotMessage.query().where('botUserId', botUserId).count('* as total')
+
+    const incomingMessages = await BotMessage.query()
+      .where('botUserId', botUserId)
+      .where('direction', 'in')
+      .count('* as total')
+
+    const outgoingMessages = await BotMessage.query()
+      .where('botUserId', botUserId)
+      .where('direction', 'out')
+      .count('* as total')
+
+    const processedMessages = await BotMessage.query()
+      .where('botUserId', botUserId)
+      .where('isProcessed', true)
+      .count('* as total')
+
+    const errorMessages = await BotMessage.query()
+      .where('botUserId', botUserId)
+      .whereNotNull('processingError')
+      .count('* as total')
+
+    const messagesByType = await BotMessage.query()
+      .where('botUserId', botUserId)
+      .select('messageType')
+      .count('* as count')
+      .groupBy('messageType')
+      .orderBy('count', 'desc')
+
+    const recentMessages = await BotMessage.query()
+      .where('botUserId', botUserId)
+      .where('createdAt', '>=', DateTime.now().minus({ days: 7 }).toSQL())
+      .count('* as total')
+
+    const avgProcessingTime = await BotMessage.query()
+      .where('botUserId', botUserId)
+      .whereNotNull('processingDurationMs')
+      .avg('processingDurationMs as avg')
+
+    return {
+      total: Number(totalMessages[0]?.$extras?.total || 0),
+      incoming: Number(incomingMessages[0]?.$extras?.total || 0),
+      outgoing: Number(outgoingMessages[0]?.$extras?.total || 0),
+      processed: Number(processedMessages[0]?.$extras?.total || 0),
+      errors: Number(errorMessages[0]?.$extras?.total || 0),
+      recent: Number(recentMessages[0]?.$extras?.total || 0),
+      averageProcessingTimeMs: Number(avgProcessingTime[0]?.$extras?.avg || 0),
+      byType: messagesByType.map((row) => ({
+        type: row.messageType,
+        count: Number(row.$extras?.count || 0),
+      })),
+    }
   }
 
   async getBotUserTaxpayers(botUserId: string, filters: any = {}): Promise<any> {

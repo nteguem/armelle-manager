@@ -11,6 +11,9 @@ export default class BotUserController extends BaseController {
     this.botUserService = new BotUserService()
   }
 
+  /**
+   * Liste paginée des bot users avec filtres et recherche
+   */
   async index(ctx: HttpContext) {
     const { request } = ctx
 
@@ -48,6 +51,9 @@ export default class BotUserController extends BaseController {
     }
   }
 
+  /**
+   * Détails d'un bot user spécifique
+   */
   async show(ctx: HttpContext) {
     const { params } = ctx
 
@@ -61,11 +67,15 @@ export default class BotUserController extends BaseController {
       const taxpayersCount = await this.botUserService.getBotUserTaxpayers(botUser.id)
       const taxpayersData = taxpayersCount.toJSON ? taxpayersCount.toJSON() : taxpayersCount
 
+      // Obtenir les statistiques des messages
+      const messageStats = await this.botUserService.getBotUserMessageStats(botUser.id)
+
       return this.success(
         ctx,
         {
           botUser: botUser.toJSON(),
           taxpayers_count: taxpayersData.meta?.total || 0,
+          message_stats: messageStats,
         },
         'Bot user retrieved successfully'
       )
@@ -75,6 +85,9 @@ export default class BotUserController extends BaseController {
     }
   }
 
+  /**
+   * Mise à jour d'un bot user
+   */
   async update(ctx: HttpContext) {
     const { params, request } = ctx
 
@@ -127,6 +140,9 @@ export default class BotUserController extends BaseController {
     }
   }
 
+  /**
+   * Suppression d'un bot user
+   */
   async destroy(ctx: HttpContext) {
     const { params } = ctx
 
@@ -159,6 +175,96 @@ export default class BotUserController extends BaseController {
     }
   }
 
+  /**
+   * Messages d'un bot user pour l'affichage en conversation
+   */
+  async getMessages(ctx: HttpContext) {
+    const { params, request } = ctx
+
+    try {
+      const botUser = await this.botUserService.findBotUserById(params.id)
+
+      if (!botUser) {
+        return this.notFound(ctx, 'Bot user not found')
+      }
+
+      const page = request.input('page', 1)
+      const limit = Math.min(request.input('limit', 50), 100)
+
+      const filters = request.only([
+        'direction',
+        'messageType',
+        'dateFrom',
+        'dateTo',
+        'search',
+        'sort_by',
+        'sort_order',
+      ])
+
+      const result = await this.botUserService.getBotUserMessages(botUser.id, filters, {
+        page,
+        limit,
+      })
+
+      return this.paginated(
+        ctx,
+        result.data,
+        result.meta,
+        'Bot user messages retrieved successfully'
+      )
+    } catch (error: any) {
+      console.error('Error fetching bot user messages:', error)
+      return this.error(
+        ctx,
+        'Failed to fetch bot user messages',
+        ErrorCodes.INTERNAL_SERVER_ERROR,
+        500
+      )
+    }
+  }
+
+  /**
+   * Statistiques des messages d'un bot user
+   */
+  async getMessageStats(ctx: HttpContext) {
+    const { params } = ctx
+
+    try {
+      const botUser = await this.botUserService.findBotUserById(params.id)
+
+      if (!botUser) {
+        return this.notFound(ctx, 'Bot user not found')
+      }
+
+      const stats = await this.botUserService.getBotUserMessageStats(botUser.id)
+
+      return this.success(
+        ctx,
+        {
+          bot_user: {
+            id: botUser.id,
+            phoneNumber: botUser.phoneNumber,
+            fullName: botUser.fullName,
+          },
+          message_stats: stats,
+          generated_at: new Date().toISOString(),
+        },
+        'Bot user message statistics retrieved successfully'
+      )
+    } catch (error: any) {
+      console.error('Error fetching bot user message stats:', error)
+      return this.error(
+        ctx,
+        'Failed to fetch bot user message stats',
+        ErrorCodes.INTERNAL_SERVER_ERROR,
+        500
+      )
+    }
+  }
+
+  /**
+   * Taxpayers liés à ce bot user
+   */
   async getTaxpayers(ctx: HttpContext) {
     const { params, request } = ctx
 
@@ -204,6 +310,9 @@ export default class BotUserController extends BaseController {
     }
   }
 
+  /**
+   * Statistiques globales des bot users
+   */
   async getStats(ctx: HttpContext) {
     try {
       const stats = await this.botUserService.getBotUserStats()

@@ -354,22 +354,16 @@ router
           .prefix('/admin/payment-transactions')
 
         /*
-        |--------------------------------------------------------------------------
-        | Bot Users Management Routes
-        |--------------------------------------------------------------------------
-        */
+|--------------------------------------------------------------------------
+| Bot Users Management Routes (section mise à jour)
+|--------------------------------------------------------------------------
+*/
         router
           .group(() => {
             // Statistiques des bot users
             router
               .get('/stats', [BotUserController, 'getStats'])
               .middleware(middleware.permission(['botuser.stats']))
-
-            /*
-            |--------------------------------------------------------------------------
-            | CRUD Operations - Routes avec :id EN DERNIER
-            |--------------------------------------------------------------------------
-            */
 
             // Liste paginée avec filtres et recherche
             router
@@ -386,12 +380,17 @@ router
               .put('/:id', [BotUserController, 'update'])
               .middleware(middleware.permission(['botuser.update']))
 
-            // Suppression d'un bot user
+            // Messages d'un bot user avec pagination et filtres
             router
-              .delete('/:id', [BotUserController, 'destroy'])
-              .middleware(middleware.permission(['botuser.delete']))
+              .get('/:id/messages', [BotUserController, 'getMessages'])
+              .middleware(middleware.permission(['botuser.view']))
 
-            // Taxpayers liés à ce bot user
+            // Statistiques des messages d'un bot user
+            router
+              .get('/:id/messages/stats', [BotUserController, 'getMessageStats'])
+              .middleware(middleware.permission(['botuser.view']))
+
+            // Taxpayers liés à ce bot user (déjà existant)
             router
               .get('/:id/taxpayers', [BotUserController, 'getTaxpayers'])
               .middleware(middleware.permission(['botuser.view']))

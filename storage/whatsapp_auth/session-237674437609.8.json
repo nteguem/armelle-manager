@@ -1,1 +1,37 @@
-{"_sessions":{"BUr2MNcw70oBK7JxpYBa4EylgYrWSIcpNepKdp+RNboe":{"registrationId":10817,"currentRatchet":{"ephemeralKeyPair":{"pubKey":"BVDSl0e9NkzooiXMaQPmhwNPREpo4nqpVZNhiKToQZxj","privKey":"sCmz1VN1XKa/1OkNjuUEQCLxXkugVt5i+8g+x/q9u2k="},"lastRemoteEphemeralKey":"Be/byoeciSsIp7gA8g1idBYcL9cxY/EmZonzssotwqBJ","previousCounter":0,"rootKey":"mUxQ1JmIivu00pMLJuxbGx77V7htQ3g2CYxkdo3SrAY="},"indexInfo":{"baseKey":"BUr2MNcw70oBK7JxpYBa4EylgYrWSIcpNepKdp+RNboe","baseKeyType":1,"closed":-1,"used":1756385825273,"created":1756385825273,"remoteIdentityKey":"Bbk7qlU64RDJ5EaA6bRIRfj7V8m0BR2z4kK1q12M4FNk"},"_chains":{"BVDSl0e9NkzooiXMaQPmhwNPREpo4nqpVZNhiKToQZxj":{"chainKey":{"counter":214,"key":"8cUTWrsQe7vVcSJkyJlpC5B2mxZpX11N1yAaXfIuc4I="},"chainType":1,"messageKeys":{}}},"pendingPreKey":{"signedKeyId":1,"baseKey":"BUr2MNcw70oBK7JxpYBa4EylgYrWSIcpNepKdp+RNboe","preKeyId":69}}},"version":"v1"}
+{
+  "_sessions": {
+    "BUr2MNcw70oBK7JxpYBa4EylgYrWSIcpNepKdp+RNboe": {
+      "registrationId": 10817,
+      "currentRatchet": {
+        "ephemeralKeyPair": {
+          "pubKey": "BVDSl0e9NkzooiXMaQPmhwNPREpo4nqpVZNhiKToQZxj",
+          "privKey": "sCmz1VN1XKa/1OkNjuUEQCLxXkugVt5i+8g+x/q9u2k="
+        },
+        "lastRemoteEphemeralKey": "Be/byoeciSsIp7gA8g1idBYcL9cxY/EmZonzssotwqBJ",
+        "previousCounter": 0,
+        "rootKey": "mUxQ1JmIivu00pMLJuxbGx77V7htQ3g2CYxkdo3SrAY="
+      },
+      "indexInfo": {
+        "baseKey": "BUr2MNcw70oBK7JxpYBa4EylgYrWSIcpNepKdp+RNboe",
+        "baseKeyType": 1,
+        "closed": -1,
+        "used": 1756385825273,
+        "created": 1756385825273,
+        "remoteIdentityKey": "Bbk7qlU64RDJ5EaA6bRIRfj7V8m0BR2z4kK1q12M4FNk"
+      },
+      "_chains": {
+        "BVDSl0e9NkzooiXMaQPmhwNPREpo4nqpVZNhiKToQZxj": {
+          "chainKey": { "counter": 227, "key": "iRHY8iTayWu8BVe675n/3jgDMoaWQ3n3mCRg30sdIFo=" },
+          "chainType": 1,
+          "messageKeys": {}
+        }
+      },
+      "pendingPreKey": {
+        "signedKeyId": 1,
+        "baseKey": "BUr2MNcw70oBK7JxpYBa4EylgYrWSIcpNepKdp+RNboe",
+        "preKeyId": 69
+      }
+    }
+  },
+  "version": "v1"
+}

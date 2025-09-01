@@ -71,8 +71,10 @@ export default class BotMessage extends BaseModel {
   @column.dateTime({ autoCreate: true })
   declare createdAt: DateTime
 
-  // Relations
-  @belongsTo(() => BotSession)
+  // Relations - CORRECTION ICI
+  @belongsTo(() => BotSession, {
+    foreignKey: 'sessionId',
+  })
   declare session: BelongsTo<typeof BotSession>
 
   @belongsTo(() => BotUser)
