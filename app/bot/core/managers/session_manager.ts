@@ -125,48 +125,31 @@ export default class SessionManager {
   }
 
   /**
-   * Démarre un workflow pour une session
-   */
-  public async startWorkflow(
-    sessionContext: SessionContext,
-    workflowId: string,
-    initialStep: string
-  ): Promise<void> {
-    await this.updateSessionContext(sessionContext, {
-      currentWorkflow: workflowId,
-      currentStep: initialStep,
-      workflowData: {}, // Reset des données workflow
-    })
-  }
-
-  /**
    * Termine un workflow pour une session
    */
-  // Dans SessionManager.ts - remplacer la méthode endWorkflow
-
   public async endWorkflow(sessionContext: SessionContext): Promise<void> {
-    // Mettre à jour la session en base
-    const botSession = await this.getBotSession(sessionContext)
+    // Nettoyer le contexte
+    sessionContext.currentWorkflow = undefined
+    sessionContext.currentStep = undefined
+    sessionContext.workflowData = {}
+    sessionContext.lastInteraction = new Date()
+
+    // Persister en base
+    const botSession = await BotSession.findActiveSession(
+      sessionContext.channel,
+      sessionContext.channelUserId
+    )
+
     if (botSession) {
-      await botSession.endWorkflow()
+      botSession.currentWorkflow = null
+      botSession.currentStep = null
+      botSession.currentContext = {}
+      await botSession.save()
     }
 
-    // Nettoyer complètement le contexte session
-    await this.updateSessionContext(sessionContext, {
-      currentWorkflow: undefined,
-      currentStep: undefined,
-      workflowData: {},
-    })
-
-    // Nettoyer le cache
+    // Mettre à jour le cache
     const cacheKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
-    const cachedSession = this.sessionCache.get(cacheKey)
-    if (cachedSession) {
-      cachedSession.currentWorkflow = undefined
-      cachedSession.currentStep = undefined
-      cachedSession.workflowData = {}
-      this.sessionCache.set(cacheKey, cachedSession)
-    }
+    this.sessionCache.set(cacheKey, sessionContext)
   }
 
   private async getBotSession(sessionContext: SessionContext): Promise<any> {
@@ -187,14 +170,24 @@ export default class SessionManager {
   /**
    * Extrait le numéro de téléphone depuis l'ID du canal
    */
+
   private extractPhoneNumber(channelUserId: string, channel: MessageChannel): string {
+    // Vérifier que channelUserId existe
+    if (!channelUserId) {
+      throw new Error('Channel user ID is undefined')
+    }
+
     switch (channel) {
       case 'whatsapp':
-        // WhatsApp format: "+237123456789" ou "237123456789@s.whatsapp.net"
-        return channelUserId.replace('@s.whatsapp.net', '').replace(/^\+?/, '+')
+        // WhatsApp format: "237123456789" ou "237123456789@s.whatsapp.net"
+        // On garde juste le numéro et on ajoute le +
+        const cleanNumber = channelUserId.replace('@s.whatsapp.net', '').replace(/^\+?/, '')
+        return `+${cleanNumber}`
+
       case 'telegram':
         // Pour Telegram, on utilisera l'ID utilisateur préfixé
         return `telegram_${channelUserId}`
+
       default:
         return channelUserId
     }
@@ -209,5 +202,105 @@ export default class SessionManager {
         this.sessionCache.delete(key)
       }
     }
+  }
+
+  /**
+   * Démarre un workflow pour une session
+   */
+  public async startWorkflow(
+    sessionContext: SessionContext,
+    workflowId: string,
+    initialStep: string
+  ): Promise<void> {
+    // Mettre à jour le contexte
+    sessionContext.currentWorkflow = workflowId
+    sessionContext.currentStep = initialStep
+    sessionContext.workflowData = {} // Reset des données
+    sessionContext.lastInteraction = new Date()
+
+    // Persister en base
+    const botSession = await BotSession.findActiveSession(
+      sessionContext.channel,
+      sessionContext.channelUserId
+    )
+
+    if (botSession) {
+      botSession.currentWorkflow = workflowId
+      botSession.currentStep = initialStep
+      botSession.currentContext = {}
+      await botSession.save()
+    }
+
+    // Mettre à jour le cache
+    const cacheKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
+    this.sessionCache.set(cacheKey, sessionContext)
+  }
+
+  /**
+   * Met à jour l'étape actuelle du workflow
+   */
+  public async updateWorkflowStep(
+    sessionContext: SessionContext,
+    stepId: string,
+    data?: Record<string, any>
+  ): Promise<void> {
+    // Mettre à jour le contexte
+    sessionContext.currentStep = stepId
+    if (data) {
+      sessionContext.workflowData = { ...sessionContext.workflowData, ...data }
+    }
+    sessionContext.lastInteraction = new Date()
+
+    // Persister en base
+    const botSession = await BotSession.findActiveSession(
+      sessionContext.channel,
+      sessionContext.channelUserId
+    )
+
+    if (botSession) {
+      botSession.currentStep = stepId
+      if (data) {
+        botSession.currentContext = { ...botSession.currentContext, ...data }
+      }
+      await botSession.save()
+    }
+
+    // Mettre à jour le cache
+    const cacheKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
+    this.sessionCache.set(cacheKey, sessionContext)
+  }
+
+  /**
+   * Récupère les données du workflow en cours
+   */
+  public getWorkflowData(sessionContext: SessionContext): Record<string, any> {
+    return sessionContext.workflowData || {}
+  }
+
+  /**
+   * Met à jour les données du workflow
+   */
+  public async updateWorkflowData(
+    sessionContext: SessionContext,
+    data: Record<string, any>
+  ): Promise<void> {
+    // Mettre à jour le contexte
+    sessionContext.workflowData = { ...sessionContext.workflowData, ...data }
+    sessionContext.lastInteraction = new Date()
+
+    // Persister en base
+    const botSession = await BotSession.findActiveSession(
+      sessionContext.channel,
+      sessionContext.channelUserId
+    )
+
+    if (botSession) {
+      botSession.currentContext = { ...botSession.currentContext, ...data }
+      await botSession.save()
+    }
+
+    // Mettre à jour le cache
+    const cacheKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
+    this.sessionCache.set(cacheKey, sessionContext)
   }
 }

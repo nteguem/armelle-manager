@@ -1,7 +1,9 @@
 {
   "bot_header": "My Virtual Tax Assistant/ Cameroon Taxes",
+  "central_state_prompt": "Welcome! What can I do for you?",
   "step_progress": "Step {{current}}/{{total}}",
   "welcome_message": "👋 Welcome {{name}}!",
+  "footer_options": "Type 'menu' for options | 'armelle' for the assistant",
   "continue_onboarding": "Please complete your registration",
   "navigation": {
     "select_option": "Select an option",

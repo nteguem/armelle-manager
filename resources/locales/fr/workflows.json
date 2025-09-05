@@ -1,16 +1,35 @@
 {
+  "common": {
+    "completed": "Workflow terminé !",
+    "validation_error": "Erreur de validation : {{error}}",
+    "cannot_go_back": "Impossible de revenir en arrière",
+    "navigation_hint": "Tapez 'retour' pour revenir | 'armelle' pour annuler",
+    "navigation_forward_only": "Tapez 'fr' pour français | 'en' for English",
+    "step_progress": "Étape {{current}}/{{total}}"
+  },
   "onboarding": {
     "name": "Inscription",
-    "collect_name": "👋 Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
-    "searching_dgi": "Vérification de votre identité dans le fichier national des contribuables.\nVeuillez patienter...",
-    "selection_menu": "Plusieurs profils correspondent à votre nom :\n\nVeuillez sélectionner le vôtre :",
-    "too_many_results": "Trop de résultats trouvés ({{count}}).\n\nVeuillez préciser votre nom complet.",
-    "invalid_selection": "Sélection invalide. Veuillez choisir une option proposée.",
-    "completion_subheader": "Inscription réussie {{name}} !",
-    "completion_content": "Comment puis-je vous aider aujourd'hui ?",
-    "completion_footer": "Tapez \"menu\" pour les options disponibles | \"en\" for English",
-    "completion_name_only": "Inscription réussie avec votre nom uniquement.",
-    "completion_new_taxpayer": "Votre profil contribuable a été créé et lié avec succès.",
-    "complete": "Inscription terminée avec succès !"
+
+    "collect_name": "Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
+
+    "searching_dgi": "Vérification de votre identité dans la base DGI.\nVeuillez patienter...\n\nConnexion avec les services DGI en cours...",
+
+    "confirm_single": "Un profil correspond à votre nom :\nVeuillez confirmer si c'est bien le vôtre :",
+
+    "select_multiple": "Plusieurs profils correspondent à votre nom :\nVeuillez sélectionner le vôtre :",
+
+    "too_many_results": "⚠️ Trop de résultats ({{count}}) trouvés.\n\nVeuillez ressaisir votre nom complet pour affiner la recherche.",
+
+    "completion_partial": "⚠️ Profil partiel - {{userName}}\nBienvenue ! Que puis-je faire pour vous ?\n\nAucun contribuable DGI ne correspond à votre nom. Vous pouvez créer un nouveau dossier contribuable ou vous relier à un profil existant en tapant 'profil'.",
+
+    "completion_complete": "Profil configuré - {{userName}}, NIU: {{niu}}\nBienvenue {{userName}} ! Que puis-je faire pour vous ?",
+
+    "completion_error": "⚠️ Profil partiel - {{userName}}\nLes services DGI sont temporairement indisponibles.\nVotre profil a été créé mais reste partiel.\n\nBienvenue ! Que puis-je faire pour vous ?",
+
+    "dgi_unavailable": "⚠️ Les services DGI sont temporairement indisponibles.\nVotre profil reste partiel pour le moment.",
+
+    "no_taxpayer_found": "Aucun contribuable trouvé pour '{{name}}'",
+
+    "taxpayer_linked": "Contribuable lié avec succès"
   }
 }

@@ -1,24 +1,28 @@
-import type { WorkflowDefinition } from '../engine/workflow_context.js'
-import { WorkflowEngine } from '../engine/workflow_engine.js'
-import { WorkflowProgressConfigs } from '#config/workflows'
-import logger from '@adonisjs/core/services/logger'
+// app/bot/core/workflow/registry/workflow_registry.ts
 
-interface WorkflowMetadata {
-  definition: WorkflowDefinition
-  registeredAt: Date
-  version?: string
-  description?: string
+import type { BaseWorkflow } from '../definitions/base_workflow.js'
+
+interface WorkflowRegistration {
+  workflow: typeof BaseWorkflow
+  metadata: {
+    version: string
+    description?: string
+    enabled?: boolean
+  }
 }
 
+/**
+ * Registry central pour tous les workflows disponibles
+ */
 export class WorkflowRegistry {
   private static instance: WorkflowRegistry
-  private workflows: Map<string, WorkflowMetadata> = new Map()
-  private engine: WorkflowEngine
+  private workflows: Map<string, WorkflowRegistration> = new Map()
 
-  private constructor() {
-    this.engine = WorkflowEngine.getInstance()
-  }
+  private constructor() {}
 
+  /**
+   * Singleton
+   */
   public static getInstance(): WorkflowRegistry {
     if (!WorkflowRegistry.instance) {
       WorkflowRegistry.instance = new WorkflowRegistry()
@@ -26,143 +30,140 @@ export class WorkflowRegistry {
     return WorkflowRegistry.instance
   }
 
+  /**
+   * Enregistre un workflow
+   */
   public register(
-    definition: WorkflowDefinition,
-    options: {
-      version?: string
-      description?: string
-      progressConfig?: any // Ignoré - utilise config externe
-    } = {}
+    WorkflowClass: typeof BaseWorkflow,
+    metadata: { version: string; description?: string; enabled?: boolean }
   ): void {
-    const validation = this.validateDefinition(definition)
-    if (!validation.valid) {
-      throw new Error(`Invalid workflow definition for ${definition.id}: ${validation.error}`)
+    // Créer une instance temporaire pour récupérer l'ID
+    const tempInstance = new (WorkflowClass as any)()
+    const definition = tempInstance.getDefinition()
+    const workflowId = definition.id
+
+    if (this.workflows.has(workflowId)) {
+      console.warn(`Workflow ${workflowId} already registered, overwriting...`)
     }
 
-    this.workflows.set(definition.id, {
-      definition,
-      registeredAt: new Date(),
-      version: options.version,
-      description: options.description,
+    this.workflows.set(workflowId, {
+      workflow: WorkflowClass,
+      metadata: { ...metadata, enabled: metadata.enabled !== false },
     })
 
-    this.engine.registerWorkflow(definition)
-
-    // Vérifier si config de progression existe
-    const progressConfig = WorkflowProgressConfigs[definition.id]
-    if (progressConfig) {
-      logger.info(`Workflow registered with progress config: ${definition.id}`)
-    } else {
-      logger.warn(`No progress config found for workflow: ${definition.id}`)
-    }
-
-    logger.info(`Workflow registered: ${definition.id}`, {
-      version: options.version,
-      stepsCount: Object.keys(definition.steps).length,
-    })
+    console.log(`✅ Workflow '${workflowId}' v${metadata.version} registered`)
   }
 
-  public getWorkflowMetadata(workflowId: string): WorkflowMetadata | undefined {
-    return this.workflows.get(workflowId)
+  /**
+   * Crée une instance d'un workflow
+   */
+  public createInstance(workflowId: string): BaseWorkflow | null {
+    const registration = this.workflows.get(workflowId)
+
+    if (!registration) {
+      console.error(`Workflow ${workflowId} not found`)
+      return null
+    }
+
+    if (!registration.metadata.enabled) {
+      console.warn(`Workflow ${workflowId} is disabled`)
+      return null
+    }
+
+    const WorkflowClass = registration.workflow as any
+    return new WorkflowClass()
   }
 
-  public getWorkflowDefinition(workflowId: string): WorkflowDefinition | undefined {
-    const metadata = this.workflows.get(workflowId)
-    return metadata?.definition
+  /**
+   * Vérifie si un workflow existe et est activé
+   */
+  public isAvailable(workflowId: string): boolean {
+    const registration = this.workflows.get(workflowId)
+    return registration ? (registration.metadata.enabled ?? true) : false
   }
 
-  public listWorkflows(): {
-    id: string
-    name: string
-    version?: string
-    description?: string
-    stepsCount: number
-    registeredAt: Date
-    hasProgressConfig: boolean
-  }[] {
-    return Array.from(this.workflows.entries()).map(([id, metadata]) => ({
-      id,
-      name: metadata.definition.name,
-      version: metadata.version,
-      description: metadata.description,
-      stepsCount: Object.keys(metadata.definition.steps).length,
-      registeredAt: metadata.registeredAt,
-      hasProgressConfig: !!WorkflowProgressConfigs[id],
-    }))
-  }
+  /**
+   * Liste tous les workflows disponibles
+   */
+  public listAvailable(): Array<{ id: string; version: string; description?: string }> {
+    const available = []
 
-  public hasWorkflow(workflowId: string): boolean {
-    return this.workflows.has(workflowId)
-  }
+    for (const [id, registration] of this.workflows) {
+      if (registration.metadata.enabled !== false) {
+        // Créer une instance pour récupérer l'ID du workflow
+        const WorkflowClass = registration.workflow as any
+        const instance = new WorkflowClass()
+        const definition = instance.getDefinition()
 
-  public unregister(workflowId: string): boolean {
-    const removed = this.workflows.delete(workflowId)
-    if (removed) {
-      logger.info(`Workflow unregistered: ${workflowId}`)
-    }
-    return removed
-  }
-
-  private validateDefinition(definition: WorkflowDefinition): { valid: boolean; error?: string } {
-    if (!definition.id || typeof definition.id !== 'string') {
-      return { valid: false, error: 'Workflow ID is required and must be string' }
-    }
-
-    if (!definition.name || typeof definition.name !== 'string') {
-      return { valid: false, error: 'Workflow name is required and must be string' }
-    }
-
-    if (!definition.startStep || typeof definition.startStep !== 'string') {
-      return { valid: false, error: 'Workflow startStep is required and must be string' }
-    }
-
-    if (!definition.steps || typeof definition.steps !== 'object') {
-      return { valid: false, error: 'Workflow steps are required and must be object' }
-    }
-
-    if (!definition.steps[definition.startStep]) {
-      return { valid: false, error: `StartStep '${definition.startStep}' not found in steps` }
-    }
-
-    for (const [stepId, stepDef] of Object.entries(definition.steps)) {
-      if (!stepDef.id || !stepDef.type) {
-        return { valid: false, error: `Step '${stepId}' missing required id or type` }
+        available.push({
+          id: definition.id,
+          version: registration.metadata.version,
+          description: registration.metadata.description,
+        })
       }
     }
 
-    return { valid: true }
+    return available
   }
 
+  /**
+   * Désactive un workflow
+   */
+  public disable(workflowId: string): boolean {
+    const registration = this.workflows.get(workflowId)
+    if (registration) {
+      registration.metadata.enabled = false
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Active un workflow
+   */
+  public enable(workflowId: string): boolean {
+    const registration = this.workflows.get(workflowId)
+    if (registration) {
+      registration.metadata.enabled = true
+      return true
+    }
+    return false
+  }
+
+  /**
+   * Vide le registry
+   */
+  public clear(): void {
+    this.workflows.clear()
+  }
+
+  /**
+   * Stats
+   */
   public getStats(): {
     totalWorkflows: number
-    workflowsByStepCount: Record<string, number>
-    oldestWorkflow?: string
-    newestWorkflow?: string
+    enabledWorkflows: number
+    disabledWorkflows: number
+    workflowIds: string[]
   } {
-    const workflows = Array.from(this.workflows.values())
+    let enabled = 0
+    let disabled = 0
+    const ids: string[] = []
 
-    const stepCounts: Record<string, number> = {}
-    let oldest: WorkflowMetadata | undefined
-    let newest: WorkflowMetadata | undefined
-
-    for (const workflow of workflows) {
-      const stepCount = Object.keys(workflow.definition.steps).length
-      const range = stepCount <= 3 ? 'simple' : stepCount <= 6 ? 'medium' : 'complex'
-      stepCounts[range] = (stepCounts[range] || 0) + 1
-
-      if (!oldest || workflow.registeredAt < oldest.registeredAt) {
-        oldest = workflow
-      }
-      if (!newest || workflow.registeredAt > newest.registeredAt) {
-        newest = workflow
+    for (const [id, registration] of this.workflows) {
+      ids.push(id)
+      if (registration.metadata.enabled !== false) {
+        enabled++
+      } else {
+        disabled++
       }
     }
 
     return {
-      totalWorkflows: workflows.length,
-      workflowsByStepCount: stepCounts,
-      oldestWorkflow: oldest?.definition.id,
-      newestWorkflow: newest?.definition.id,
+      totalWorkflows: this.workflows.size,
+      enabledWorkflows: enabled,
+      disabledWorkflows: disabled,
+      workflowIds: ids,
     }
   }
 }

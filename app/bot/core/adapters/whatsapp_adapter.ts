@@ -1,3 +1,5 @@
+// app/bot/core/adapters/whatsapp_adapter.ts
+
 import {
   makeWASocket,
   DisconnectReason,
@@ -44,8 +46,8 @@ export default class WhatsAppAdapter implements ChannelAdapter {
     // Format correct pour Baileys
     const formattedJid = message.to.includes('@') ? message.to : `${message.to}@s.whatsapp.net`
 
-    await this.simulateTyping(formattedJid, message.content)
-    await this.socket.sendMessage(formattedJid, { text: message.content })
+    await this.simulateTyping(formattedJid, message.text) // Changé content en text
+    await this.socket.sendMessage(formattedJid, { text: message.text }) // Changé content en text
     console.log(`📤 Message sent`)
   }
 
@@ -57,6 +59,18 @@ export default class WhatsAppAdapter implements ChannelAdapter {
     onMessageReceived?: (message: IncomingMessage) => Promise<void>
   }): void {
     this.onMessageReceived = callbacks.onMessageReceived
+  }
+
+  public async stop(): Promise<void> {
+    const keepAlive = process.env.WHATSAPP_KEEP_ALIVE === 'true'
+
+    if (!keepAlive && this.socket && this.connectionStatus) {
+      await this.socket.logout()
+    }
+
+    this.socket = null
+    this.connectionStatus = false
+    console.log('WhatsApp stopped')
   }
 
   private handleConnectionUpdate(update: Partial<ConnectionState>): void {
@@ -93,11 +107,11 @@ export default class WhatsAppAdapter implements ChannelAdapter {
     QRTerminal.generate(qr, { small: true })
   }
 
-  private async simulateTyping(jid: string, content: string): Promise<void> {
+  private async simulateTyping(jid: string, text: string): Promise<void> {
     if (!this.socket || !botConfig.messages.typingSimulation) return
 
     try {
-      const wordsCount = content.split(' ').length
+      const wordsCount = text.split(' ').length
       const typingDurationMs = Math.min((wordsCount / 60) * 60 * 1000, 3000)
 
       await this.socket.sendPresenceUpdate('composing', jid)
@@ -120,20 +134,22 @@ export default class WhatsAppAdapter implements ChannelAdapter {
       const phoneNumber = message.key.remoteJid?.split('@')[0]
       if (!phoneNumber || !message.key.remoteJid?.includes('@s.whatsapp.net')) continue
 
+      // Créer le message avec les bons champs
       const incomingMessage: IncomingMessage = {
         channel: 'whatsapp',
-        channelUserId: phoneNumber,
-        content: content.trim(),
-        rawData: {
+        from: phoneNumber, // Changé channelUserId en from
+        text: content.trim(), // Changé content en text
+        type: 'text', // Changé messageType en type
+        timestamp: new Date(),
+        metadata: {
+          // Changé rawData en metadata
           messageInfo: message,
           timestamp: message.messageTimestamp,
           messageId: message.key.id,
         },
-        messageType: 'text',
-        timestamp: new Date(),
       }
 
-      console.log(`📥 Message: ${content.substring(0, 30)}...`)
+      console.log(`📥 Message from ${phoneNumber}: ${content.substring(0, 30)}...`)
 
       if (this.onMessageReceived) {
         try {
@@ -156,17 +172,5 @@ export default class WhatsAppAdapter implements ChannelAdapter {
       trace: () => {},
       child: () => this.createLogger(),
     }
-  }
-
-  public async stop(): Promise<void> {
-    const keepAlive = process.env.WHATSAPP_KEEP_ALIVE === 'true'
-
-    if (!keepAlive && this.socket && this.connectionStatus) {
-      await this.socket.logout()
-    }
-
-    this.socket = null
-    this.connectionStatus = false
-    console.log('WhatsApp stopped')
   }
 }

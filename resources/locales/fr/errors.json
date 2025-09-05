@@ -5,7 +5,7 @@
   "commands": {
     "not_allowed_in_context": "Cette commande n'est pas disponible dans le contexte actuel",
     "blocked_in_workflow": "Cette commande est bloquée dans le workflow {{workflow}}",
-    "menu_blocked_onboarding": "Le menu n'est pas accessible pendant l'inscription"
+    "menu_blocked_onboarding": "Veuillez d'abord terminer votre inscription."
   },
   "workflow": {
     "start_failed": "Impossible de démarrer le processus. Veuillez réessayer.",
@@ -13,5 +13,9 @@
   },
   "menu": {
     "invalid_choice": "Option invalide. Veuillez choisir une option proposée."
-  }
+  },
+  "ai_unavailable": "L'assistant intelligent est temporairement indisponible.",
+
+  "ai_error": "Désolé, je rencontre un problème technique. Pouvez-vous reformuler votre question ?",
+  "unknown_command": "Commande non reconnue."
 }

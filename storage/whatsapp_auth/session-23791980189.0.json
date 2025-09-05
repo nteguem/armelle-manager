@@ -21,9 +21,13 @@
       },
       "_chains": {
         "Bd5DaF1/zEDNFCkrcTIa1HfiH2Kduf64Ubh4lrCk1uw4": {
-          "chainKey": { "counter": 9, "key": "dejPb7oDux0zpt1vND7Pc1nWLcaZwoie+h0cj4MBC4g=" },
+          "chainKey": { "counter": 18, "key": "r0oSajsGbNHkfbMEvX+8AdN8ggqKt2hpWrLoEPrBEq0=" },
           "chainType": 2,
-          "messageKeys": {}
+          "messageKeys": {
+            "11": "Cfm1D1nxeJoC6vdIHbtSyv+BudD5z1ma7oXtl465gJk=",
+            "12": "ZBq9yxgtdMfBNk2utZ38uYlgbRmk0hFPdg8COBnk0b0=",
+            "13": "aoJ47p/bgdmWq+G8fhuLP/RG9l4ygnv2kD6hKPtcFr4="
+          }
         },
         "BWGJQX2WK+qt9hpGMFTYuQ2E0zdEErtgpVthrSy8QF9s": {
           "chainKey": { "counter": -1, "key": "YD9cBHnVFS85MR9DBzBcDw4+s4j7PjmOFqkMvDLJMYE=" },

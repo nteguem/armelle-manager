@@ -10,5 +10,11 @@
     "senderChainKey": { "iteration": 1, "seed": "J/jJO4VNf7l3hipIOpkGYAN9PD/oks6vXn47fW2HQjU=" },
     "senderSigningKey": { "public": "BboirTRQzmea26barsZy+1KCYk3DZxpe1Swg+Nz0Kl4F" },
     "senderMessageKeys": []
+  },
+  {
+    "senderKeyId": 242388943,
+    "senderChainKey": { "iteration": 1, "seed": "//uc1+EOUNsU0AEXkxD0YaJ09D15y75abY5w1AAISOo=" },
+    "senderSigningKey": { "public": "Ban2ITJaxqBV+RiGMkEjHq2f6QlbjHgUyMno75w3R50Q" },
+    "senderMessageKeys": []
   }
 ]

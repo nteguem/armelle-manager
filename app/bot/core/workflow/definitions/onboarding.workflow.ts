@@ -1,65 +1,55 @@
-import type { WorkflowDefinition } from '../engine/workflow_context.js'
+import { BaseWorkflow } from './base_workflow.js'
+import type { WorkflowDefinition } from '../../../types/workflow_types.js'
 
-export const OnboardingWorkflow: WorkflowDefinition = {
-  id: 'onboarding',
-  name: 'Configuration utilisateur',
-  startStep: 'collect_name',
-  metadata: {
-    totalSteps: 2,
-    headerPrefix: 'Inscription',
-    completionMessage: 'workflows.onboarding.complete',
-  },
-
-  steps: {
-    collect_name: {
-      id: 'collect_name',
-      type: 'input',
-      config: {
-        messageKey: 'workflows.onboarding.collect_name',
-        updateUserName: true, // Convention générique pour mise à jour nom utilisateur
-        validation: {
-          required: true,
-          minLength: 2,
-          maxLength: 100,
-          type: 'text',
+export class OnboardingWorkflow extends BaseWorkflow {
+  define(): WorkflowDefinition {
+    return {
+      id: 'onboarding',
+      version: '1.0.0',
+      steps: [
+        // Étape 1: Collecte du nom
+        {
+          id: 'collect_name',
+          type: 'input',
+          prompt: 'workflows.onboarding.collect_name',
+          validation: {
+            required: true,
+            min: 2,
+            max: 100,
+          },
+          canGoBack: false,
         },
-        saveAs: 'user_name',
-      },
-      nextStep: 'process_registration',
-    },
-
-    process_registration: {
-      id: 'process_registration',
-      type: 'service',
-      config: {
-        messageKey: 'workflows.onboarding.searching_dgi',
-        service: 'onboarding_service',
-        method: 'processUserRegistration',
-        params: {
-          botUserId: '{{session.userId}}',
-          userName: '{{user_name}}',
+        // Étape 2: Recherche DGI (avec message de transition)
+        {
+          id: 'process_dgi',
+          type: 'service',
+          prompt: 'workflows.onboarding.searching_dgi', // Message montré pendant la recherche
+          service: {
+            name: 'onboarding_service',
+            method: 'processDGISearch',
+          },
         },
-        saveAs: 'registration_result',
+        // Étape 3: Sélection du contribuable (dynamique)
+        {
+          id: 'taxpayer_selection',
+          type: 'choice',
+          prompt: 'dynamic', // Sera défini dynamiquement
+          choices: [], // Sera rempli dynamiquement
+        },
+        // Étape 4: Confirmation et création du profil
+        {
+          id: 'confirm_selection',
+          type: 'service',
+          prompt: '',
+          service: {
+            name: 'onboarding_service',
+            method: 'confirmTaxpayerSelection',
+          },
+        },
+      ],
+      onComplete: async (data: Record<string, any>) => {
+        console.log('✅ Onboarding terminé:', data.profileType, data.userName)
       },
-      nextStep: 'finalize',
-    },
-
-    finalize: {
-      id: 'finalize',
-      type: 'message',
-      config: {
-        messageKey: 'workflows.onboarding.complete',
-      },
-    },
-  },
-}
-
-export const OnboardingProgressConfig = {
-  totalSteps: 2,
-  prefix: 'Inscription',
-  stepMapping: {
-    collect_name: 1,
-    process_registration: 2,
-    finalize: 2,
-  },
+    }
+  }
 }

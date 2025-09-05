@@ -1,16 +1,35 @@
 {
+  "common": {
+    "completed": "Workflow completed!",
+    "validation_error": "Validation error: {{error}}",
+    "cannot_go_back": "You cannot go back",
+    "navigation_hint": "Type 'back' to return | 'armelle' to cancel",
+    "navigation_forward_only": "Type 'fr' for French | 'en' for English",
+    "step_progress": "Step {{current}}/{{total}}"
+  },
   "onboarding": {
     "name": "Registration",
-    "collect_name": "👋 Hello! I'm Armelle, your Cameroonian tax assistant.\nI can help you calculate your IGS, make your e-declarations, respect your deadlines and answer your general tax questions!\n\nTo get started, enter Name/Company name.\nExample: MBARGA FOUDA / ABC EXPRESS",
-    "searching_dgi": "Verifying your identity in the National Taxpayers Registry.\nPlease wait...",
-    "selection_menu": "Multiple profiles match your name:\n\nPlease select yours:",
-    "too_many_results": "Too many results found ({{count}}).\n\nPlease specify your full name.",
-    "invalid_selection": "Invalid selection. Please choose a proposed option.",
-    "completion_subheader": "Registration successful {{name}}!",
-    "completion_content": "How can I help you today?",
-    "completion_footer": "Type \"menu\" for available options | \"fr\" pour Français",
-    "completion_name_only": "Registration successful with your name only.",
-    "completion_new_taxpayer": "Your taxpayer profile has been created and linked successfully.",
-    "complete": "Registration completed successfully!"
+
+    "collect_name": "Hi! I’m Armelle, your tax assistant in Cameroon.\nI can help you calculate your IGS, file your online declarations, meet your deadlines, and answer your general tax questions!\n\nTo get started, please enter your Name/Business name.\nExample: MBARGA FOUDA / ABC EXPRESS",
+
+    "searching_dgi": "Verifying your identity in the DGI database.\nPlease wait...\n\nConnecting to DGI services...",
+
+    "confirm_single": "One profile matches your name:\nPlease confirm if this is yours:",
+
+    "select_multiple": "Several profiles match your name:\nPlease select yours:",
+
+    "too_many_results": "⚠️ Too many results ({{count}}) found.\n\nPlease re-enter your full name to refine the search.",
+
+    "completion_partial": "⚠️ Partial profile - {{userName}}\nWelcome! What can I do for you?\n\nNo DGI taxpayer matches your name. You can create a new taxpayer file or link to an existing profile by typing 'profile'.",
+
+    "completion_complete": "Profile configured - {{userName}}, NIU: {{niu}}\nWelcome {{userName}}! What can I do for you?",
+
+    "completion_error": "⚠️ Partial profile - {{userName}}\nDGI services are temporarily unavailable.\nYour profile has been created but remains partial.\n\nWelcome! What can I do for you?",
+
+    "dgi_unavailable": "⚠️ DGI services are temporarily unavailable.\nYour profile remains partial for now.",
+
+    "no_taxpayer_found": "No taxpayer found for '{{name}}'",
+
+    "taxpayer_linked": "Taxpayer successfully linked"
   }
 }

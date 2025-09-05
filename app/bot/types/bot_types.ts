@@ -1,21 +1,9 @@
 /**
- * Langues supportées par le bot
+ * Types existants (conservés)
  */
 export type SupportedLanguage = 'fr' | 'en'
-
-/**
- * Canaux de communication supportés
- */
 export type MessageChannel = 'whatsapp' | 'telegram' | 'discord'
-
-/**
- * Direction des messages
- */
 export type MessageDirection = 'incoming' | 'outgoing'
-
-/**
- * Types de messages
- */
 export type MessageType = 'text' | 'menu' | 'image' | 'document' | 'audio'
 
 /**
@@ -23,21 +11,21 @@ export type MessageType = 'text' | 'menu' | 'image' | 'document' | 'audio'
  */
 export interface IncomingMessage {
   channel: MessageChannel
-  channelUserId: string
-  content: string
-  messageType: MessageType
-  timestamp: Date
-  rawData: Record<string, any>
+  from: string
+  text: string
+  type: MessageType
+  timestamp?: Date
+  metadata?: Record<string, any>
 }
 
 /**
  * Message sortant vers un canal
+ * Conservé tel quel mais ajusté pour cohérence
  */
 export interface OutgoingMessage {
-  channel: MessageChannel
   to: string
-  content: string
-  messageType: MessageType
+  text: string // Changé de content pour cohérence
+  type: MessageType
   metadata?: Record<string, any>
 }
 
