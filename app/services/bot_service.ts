@@ -1,252 +1,190 @@
-// app/services/bot_service.ts
-
-import MessageRouter from '#bot/core/routing/message_router'
-import CommandManager from '#bot/core/managers/command_manager'
-import SessionManager from '#bot/core/managers/session_manager'
-import I18nManager from '#bot/core/managers/i18n_manager'
-import WhatsAppAdapter from '#bot/core/adapters/whatsapp_adapter'
+import { BotOrchestrator } from '#bot/core/orchestrator/bot_orchestrator'
+import { StateController } from '#bot/core/state/state_controller'
 import { WorkflowRegistry } from '#bot/core/workflow/registry/workflow_registry'
 import { WorkflowServiceRegistry } from '#bot/core/workflow/services/workflow_service_registry'
-import WorkflowEngine from '#bot/core/workflow/engine/workflow_engine'
+import SessionManager from '#bot/core/managers/session_manager'
+import I18nManager from '#bot/core/managers/i18n_manager'
 import AIEngine from '#bot/core/ai/engine/ai_engine'
-import DgiScraperService from '#services/dgi_scraper_service'
-import TaxpayerService from '#services/taxpayer_service'
-import BotUserService from '#services/bot_user_service'
-import botConfig from '#config/bot'
-import type { ChannelAdapter, IncomingMessage } from '#bot/types/bot_types'
+import WhatsAppAdapter from '#bot/core/adapters/whatsapp_adapter'
 import OnboardingService from './onboarding_service.js'
+import BotUserService from './bot_user_service.js'
+import TaxpayerService from './taxpayer_service.js'
+import DgiScraperService from './dgi_scraper_service.js'
+import type { IncomingMessage } from '#bot/types/bot_types'
+import logger from '@adonisjs/core/services/logger'
+import IGSService from './igs_service.js'
+import NIUFinderService from './niu_finder_service.js'
+import NIURequestService from './niu_request_service.js'
 
 export default class BotService {
-  private messageRouter: MessageRouter
-  private adapters: Map<string, ChannelAdapter> = new Map()
-  private isStarted: boolean = false
+  private orchestrator: BotOrchestrator
+  private adapters: Map<string, any> = new Map()
+  private isStarted = false
 
   constructor() {
-    this.messageRouter = new MessageRouter()
+    this.orchestrator = new BotOrchestrator()
   }
 
-  public async start(): Promise<void> {
+  async start(): Promise<void> {
     if (this.isStarted) {
-      console.log('🤖 Bot is already started')
+      logger.info('Bot is already started')
       return
     }
 
     try {
-      console.log('🚀 Starting Armelle Bot...')
+      logger.info('Starting Armelle Bot...')
 
+      // 1. Initialiser les managers
       await this.initializeManagers()
-      await this.initializeWorkflowSystem()
-      await this.initializeAISystem()
-      await this.setupRouter()
-      await this.setupAdapters()
+
+      // 2. Initialiser les services
+      await this.initializeServices()
+
+      // 3. Enregistrer les workflows
+      await this.registerWorkflows()
+
+      // 4. Initialiser l'IA
+      await this.initializeAI()
+
+      // 5. Démarrer les adaptateurs
       await this.startAdapters()
+
+      // 6. Tâches de nettoyage
       this.setupCleanupTasks()
 
       this.isStarted = true
-      console.log('✅ Armelle Bot started successfully!')
+      logger.info('Armelle Bot started successfully')
     } catch (error) {
-      console.error('❌ Failed to start bot:', error)
+      logger.error({ error }, 'Failed to start bot')
       throw error
     }
   }
 
-  public async stop(): Promise<void> {
+  async stop(): Promise<void> {
     if (!this.isStarted) {
-      console.log('🤖 Bot is not running')
+      logger.info('Bot is not running')
       return
     }
 
-    try {
-      console.log('🛑 Stopping Armelle Bot...')
+    logger.info('Stopping Armelle Bot...')
 
-      for (const [channel, adapter] of this.adapters) {
-        console.log(`📱 Stopping ${channel} adapter...`)
-        await adapter.stop()
-      }
-
-      this.isStarted = false
-      console.log('✅ Armelle Bot stopped successfully!')
-    } catch (error) {
-      console.error('❌ Error stopping bot:', error)
-      throw error
-    }
-  }
-
-  public isRunning(): boolean {
-    return this.isStarted
-  }
-
-  public async processMessage(message: IncomingMessage): Promise<void> {
-    if (!this.isStarted) {
-      throw new Error('Bot must be started before processing messages')
+    for (const [channel, adapter] of this.adapters) {
+      await adapter.stop()
     }
 
-    await this.messageRouter.handleIncomingMessage(message)
+    this.isStarted = false
+    logger.info('Armelle Bot stopped')
   }
 
   private async initializeManagers(): Promise<void> {
-    console.log('⚙️ Initializing managers...')
-
-    const i18nManager = I18nManager.getInstance()
-    await i18nManager.initialize()
-
-    const commandManager = CommandManager.getInstance()
-    await commandManager.initialize()
-
-    // SessionManager est un singleton, pas besoin d'initialisation
-    const sessionManager = SessionManager.getInstance()
-
-    console.log('✅ All managers initialized')
+    const i18n = I18nManager.getInstance()
+    await i18n.initialize()
+    logger.info('Managers initialized')
   }
 
-  private async initializeWorkflowSystem(): Promise<void> {
-    console.log('🔧 Initializing workflow system...')
-
-    // Initialiser le service registry
+  private async initializeServices(): Promise<void> {
     const serviceRegistry = WorkflowServiceRegistry.getInstance()
 
-    // Enregistrer les services existants
-    serviceRegistry.register('dgi_scraper', new DgiScraperService())
-    serviceRegistry.register('taxpayer_service', new TaxpayerService())
-    serviceRegistry.register('bot_user_service', new BotUserService())
-
-    // Service d'onboarding
+    // Enregistrer TOUS les services nécessaires
     serviceRegistry.register('onboarding_service', new OnboardingService())
+    serviceRegistry.register('bot_user_service', new BotUserService())
+    serviceRegistry.register('taxpayer_service', new TaxpayerService())
+    serviceRegistry.register('dgi_scraper_service', new DgiScraperService())
+    serviceRegistry.register('igs_service', new IGSService())
+    serviceRegistry.register('niu_finder_service', new NIUFinderService())
+    serviceRegistry.register('niu_request_service', new NIURequestService())
 
-    console.log('✅ Workflow services registered')
-
-    // Initialiser le workflow registry
-    const workflowRegistry = WorkflowRegistry.getInstance()
-
-    // Enregistrer le workflow onboarding
-    const { OnboardingWorkflow } = await import(
-      '#bot/core/workflow/definitions/onboarding.workflow'
-    )
-    workflowRegistry.register(OnboardingWorkflow as any, {
-      version: '1.0.0',
-      description: "Processus d'inscription des nouveaux utilisateurs",
-    })
-
-    const stats = workflowRegistry.getStats()
-    console.log(`✅ Workflow system initialized - ${stats.totalWorkflows} workflow(s) available`)
+    logger.info('Services registered')
   }
 
-  private async initializeAISystem(): Promise<void> {
-    console.log('🤖 Initializing AI system...')
+  private async registerWorkflows(): Promise<void> {
+    const registry = WorkflowRegistry.getInstance()
 
+    // Workflows système
+    const { OnboardingWorkflow } = await import(
+      '#bot/core/workflow/definitions/system/onboarding.workflow'
+    )
+    registry.register(OnboardingWorkflow)
+    // Workflows utilisateur
+    const { IGSCalculatorWorkflow } = await import(
+      '#bot/core/workflow/definitions/user/igs_calculator.workflow'
+    )
+    registry.register(IGSCalculatorWorkflow)
+    const { NIUFinderWorkflow } = await import(
+      '#bot/core/workflow/definitions/user/niu_finder.workflow'
+    )
+
+    const { NIURequestWorkflow } = await import(
+      '#bot/core/workflow/definitions/user/niu_request.workflow'
+    )
+    registry.register(NIURequestWorkflow)
+    registry.register(NIUFinderWorkflow)
+
+    const stats = registry.getStats()
+    logger.info({ stats }, 'Workflows registered')
+  }
+
+  private async initializeAI(): Promise<void> {
     try {
       const aiEngine = AIEngine.getInstance()
-
-      // Initialiser avec le provider configuré
-      const provider = process.env.AI_PROVIDER || 'anthropic'
-      await aiEngine.initialize(provider)
+      await aiEngine.initialize('anthropic')
 
       if (aiEngine.isAvailable()) {
-        console.log(`✅ AI system initialized with ${provider} provider`)
+        logger.info('AI system initialized')
       } else {
-        console.warn('⚠️ AI system initialized but provider not available')
-        console.warn('Check your API keys in .env file')
+        logger.warn('AI system unavailable - check API keys')
       }
     } catch (error) {
-      console.error('❌ Failed to initialize AI system:', error)
-      console.warn('Bot will run without AI capabilities')
+      logger.error({ error }, 'AI initialization failed')
+      logger.warn('Bot will run without AI capabilities')
     }
-  }
-
-  private async setupRouter(): Promise<void> {
-    console.log('🔌 Setting up message router...')
-
-    // Le router est déjà créé dans le constructeur
-    // Juste pour le log
-
-    console.log('✅ Message router configured')
-  }
-
-  private async setupAdapters(): Promise<void> {
-    console.log('🔌 Setting up channel adapters...')
-
-    const enabledChannels = botConfig.channels.enabled
-
-    for (const channel of enabledChannels) {
-      let adapter: ChannelAdapter | undefined
-
-      switch (channel) {
-        case 'whatsapp':
-          if (botConfig.channels.whatsapp.enabled) {
-            adapter = new WhatsAppAdapter()
-            this.adapters.set(channel, adapter)
-            // Enregistrer l'adapter dans le router
-            this.messageRouter.registerAdapter(channel, adapter)
-            console.log('📱 WhatsApp adapter configured')
-          }
-          break
-
-        default:
-          console.warn(`⚠️ Unknown channel: ${channel}`)
-      }
-    }
-
-    console.log(`✅ ${this.adapters.size} adapter(s) configured`)
   }
 
   private async startAdapters(): Promise<void> {
-    console.log('🚀 Starting channel adapters...')
+    // WhatsApp
+    const whatsapp = new WhatsAppAdapter()
+    whatsapp.setCallbacks({
+      onMessageReceived: (msg: IncomingMessage) => this.orchestrator.processMessage(msg),
+    })
 
-    for (const [channel, adapter] of this.adapters) {
-      try {
-        adapter.setCallbacks({
-          onMessageReceived: this.handleIncomingMessage.bind(this),
-        })
+    await whatsapp.start()
+    this.adapters.set('whatsapp', whatsapp)
+    this.orchestrator.registerAdapter('whatsapp', whatsapp)
 
-        await adapter.start()
-        console.log(`✅ ${channel} adapter started`)
-      } catch (error) {
-        console.error(`❌ Failed to start ${channel} adapter:`, error)
-      }
-    }
-  }
-
-  private async handleIncomingMessage(message: IncomingMessage): Promise<void> {
-    try {
-      // Déléguer au router
-      await this.messageRouter.handleIncomingMessage(message)
-    } catch (error) {
-      console.error('❌ Error handling incoming message:', error)
-    }
+    logger.info('Adapters started')
   }
 
   private setupCleanupTasks(): void {
-    const cleanupInterval = botConfig.sessions.cleanupIntervalHours * 60 * 60 * 1000
-
+    // Nettoyer les sessions expirées toutes les heures
     setInterval(() => {
       try {
         const sessionManager = SessionManager.getInstance()
         sessionManager.cleanupExpiredSessions()
-        console.log('🧹 Session cleanup completed')
-      } catch (error) {
-        console.error('❌ Session cleanup error:', error)
-      }
-    }, cleanupInterval)
 
-    console.log(`🧹 Cleanup tasks scheduled every ${botConfig.sessions.cleanupIntervalHours}h`)
+        const stateController = StateController.getInstance()
+        stateController.cleanup()
+
+        logger.info('Cleanup completed')
+      } catch (error) {
+        logger.error({ error }, 'Cleanup error')
+      }
+    }, 3600000) // 1 heure
   }
 
-  public getSystemStats(): {
-    isRunning: boolean
-    adapters: number
-    workflows: any
-    engine: any
-    ai: any
-  } {
+  isRunning(): boolean {
+    return this.isStarted
+  }
+
+  getStats(): any {
     const workflowRegistry = WorkflowRegistry.getInstance()
-    const workflowEngine = WorkflowEngine.getInstance()
+    const stateController = StateController.getInstance()
     const aiEngine = AIEngine.getInstance()
 
     return {
       isRunning: this.isStarted,
       adapters: this.adapters.size,
       workflows: workflowRegistry.getStats(),
-      engine: workflowEngine.getStats(),
+      states: stateController.getStats(),
       ai: aiEngine.getStats(),
     }
   }

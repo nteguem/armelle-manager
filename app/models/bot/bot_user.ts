@@ -5,6 +5,8 @@ import BotSession from './bot_session.js'
 import BotMessage from './bot_message.js'
 import Taxpayer from '../rest-api/tax_payer.js'
 import BotUserTaxpayer from './bot_user_taxpayers.js'
+// Import pour la nouvelle relation IGS
+import BotIgsCalculation from './bot_igs_calculation.js'
 
 export default class BotUser extends BaseModel {
   @column({ isPrimary: true })
@@ -37,6 +39,7 @@ export default class BotUser extends BaseModel {
   @column.dateTime({ autoCreate: true, autoUpdate: true })
   declare updatedAt: DateTime
 
+  // Relations existantes
   @hasMany(() => BotSession)
   declare sessions: HasMany<typeof BotSession>
 
@@ -65,6 +68,11 @@ export default class BotUser extends BaseModel {
   @hasMany(() => BotUserTaxpayer, { foreignKey: 'botUserId' })
   declare taxpayerRelations: HasMany<typeof BotUserTaxpayer>
 
+  // Nouvelle relation pour les calculs IGS
+  @hasMany(() => BotIgsCalculation, { foreignKey: 'botUserId' })
+  declare igsCalculations: HasMany<typeof BotIgsCalculation>
+
+  // Méthodes existantes
   public get displayName(): string {
     return this.fullName || this.phoneNumber
   }
@@ -107,6 +115,7 @@ export default class BotUser extends BaseModel {
     await this.save()
   }
 
+  // Scopes existants
   public static verified() {
     return this.query().where('isVerified', true)
   }
@@ -121,5 +130,35 @@ export default class BotUser extends BaseModel {
 
   public static byLanguage(language: 'fr' | 'en') {
     return this.query().where('language', language)
+  }
+
+  // Nouvelles méthodes pour les calculs IGS
+
+  // Récupère le dernier calcul IGS
+  public async getLatestIgsCalculation(): Promise<BotIgsCalculation | null> {
+    return await BotIgsCalculation.query()
+      .where('botUserId', this.id)
+      .orderBy('createdAt', 'desc')
+      .first()
+  }
+
+  // Récupère tous les calculs IGS (historique complet)
+  public async getAllIgsCalculations(): Promise<BotIgsCalculation[]> {
+    return await BotIgsCalculation.query().where('botUserId', this.id).orderBy('createdAt', 'desc')
+  }
+
+  // Vérifie l'existence de calculs IGS
+  public async hasIgsCalculations(): Promise<boolean> {
+    const count = await BotIgsCalculation.query().where('botUserId', this.id).count('* as total')
+
+    return count[0].$extras.total > 0
+  }
+
+  // Filtre les calculs par année fiscale
+  public async getIgsCalculationsByYear(year: number): Promise<BotIgsCalculation[]> {
+    return await BotIgsCalculation.query()
+      .where('botUserId', this.id)
+      .where('currentYear', year)
+      .orderBy('createdAt', 'desc')
   }
 }

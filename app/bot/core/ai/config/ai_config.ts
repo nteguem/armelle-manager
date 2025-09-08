@@ -8,7 +8,7 @@ export const AI_CONFIG = {
 
   // Configuration Anthropic
   anthropic: {
-    model: process.env.ANTHROPIC_MODEL || 'claude-3-haiku-20240307',
+    model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
     maxTokens: Number.parseInt(process.env.ANTHROPIC_MAX_TOKENS || '500'),
     temperature: Number.parseFloat(process.env.ANTHROPIC_TEMPERATURE || '0.7'),
   },

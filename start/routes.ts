@@ -10,6 +10,7 @@
 import { middleware } from '#start/kernel'
 import router from '@adonisjs/core/services/router'
 const AuthController = () => import('#controllers/auth_controller')
+const IgsCalculationsController = () => import('#controllers/igs_calculators_controller')
 const PasswordResetController = () => import('#controllers/password_reset_controller')
 const RolesController = () => import('#controllers/roles_controller')
 const PermissionsController = () => import('#controllers/permissions_controller')
@@ -169,10 +170,9 @@ router
               .get('/:userId/permissions', [PermissionsController, 'userPermissions'])
               .middleware(middleware.permission(['users.view']))
 
-            router
-              .post('/:userId/permissions', [PermissionsController, 'grantToUser'])
-              .middleware(middleware.permission(['users.assign_roles']))
-
+            router.post('/:userId/permissions', [PermissionsController, 'grantToUser'])
+            //decommentez en prod cette route
+            // .middleware(middleware.permission(['users.assign_roles']))
             router
               .delete('/:userId/permissions/:permissionId', [
                 PermissionsController,
@@ -396,6 +396,41 @@ router
               .middleware(middleware.permission(['botuser.view']))
           })
           .prefix('/admin/bot-users')
+
+        /*
+|--------------------------------------------------------------------------
+| IGS Calculations Management Routes
+|--------------------------------------------------------------------------
+*/
+        router
+          .group(() => {
+            // Statistiques des calculs IGS
+            router
+              .get('/stats', [IgsCalculationsController, 'getStats'])
+              .middleware(middleware.permission(['igs.stats']))
+
+            // Calculs IGS par utilisateur bot spécifique
+            router
+              .get('/bot-user/:bot_user_id', [IgsCalculationsController, 'getByBotUser'])
+              .middleware(middleware.permission(['igs.view']))
+
+            /*
+    |--------------------------------------------------------------------------
+    | CRUD Operations - Routes avec :id EN DERNIER
+    |--------------------------------------------------------------------------
+    */
+
+            // Liste paginée avec filtres et recherche
+            router
+              .get('/', [IgsCalculationsController, 'index'])
+              .middleware(middleware.permission(['igs.list']))
+
+            // Détails d'un calcul IGS spécifique
+            router
+              .get('/:id', [IgsCalculationsController, 'show'])
+              .middleware(middleware.permission(['igs.view']))
+          })
+          .prefix('/admin/igs-calculations')
       })
       .middleware(middleware.nellysAuth())
   })

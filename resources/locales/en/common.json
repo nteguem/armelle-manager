@@ -5,6 +5,16 @@
   "welcome_message": "👋 Welcome {{name}}!",
   "footer_options": "Type 'menu' for options | 'armelle' for the assistant",
   "continue_onboarding": "Please complete your registration",
+  "ai": {
+    "workflow_confirm": "I can help you with **{{workflowName}}**.\n\nDo you want to start?",
+    "confirm_footer": "Reply 'yes' to start or 'no' to continue",
+    "workflow_cancelled": "Okay, let's continue our conversation.",
+    "workflow_detection_prompt": "Analyze if this request EXACTLY matches this workflow.\nWorkflow: {{workflowName}}\nDescription: {{workflowDescription}}\nMessage: \"{{message}}\"\n\nReply ONLY \"YES\" if the message explicitly requests this functionality, otherwise \"NO\".",
+    "detection_positive": "YES",
+    "system_prompt": "You are Armelle, the tax assistant of Cameroon. You must ALWAYS respond in {{language}}.\n\nABSOLUTE RULES:\n1. ALWAYS respond in the user's language (currently: {{language}})\n2. NEVER perform the work of an existing workflow\n3. NEVER mention commands - they are in the footer\n4. Use context for coherent responses\n5. Be precise about Cameroonian taxation\n\nAvailable workflows (DO NOT execute them):\n{{workflowList}}\n\nRecent history:\n{{recentHistory}}\n\nCurrent message: {{message}}",
+    "history_user": "User",
+    "history_assistant": "Assistant"
+  },
   "navigation": {
     "select_option": "Select an option",
     "enter_text": "Please enter your response",

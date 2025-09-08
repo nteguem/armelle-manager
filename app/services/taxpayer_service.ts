@@ -43,17 +43,6 @@ export default class TaxpayerService {
     taxpayerData: any
   ): Promise<{ success: boolean; message: string }> {
     try {
-      console.log('🚀 Creating taxpayer with async enrichment - DETAILED:', {
-        botUserId,
-        taxpayerDataType: typeof taxpayerData,
-        taxpayerDataKeys: taxpayerData ? Object.keys(taxpayerData) : 'NULL',
-        nomRaisonSociale: taxpayerData?.nomRaisonSociale,
-        prenomSigle: taxpayerData?.prenomSigle,
-        centre: taxpayerData?.centre,
-        niu: taxpayerData?.niu,
-        fullTaxpayerData: taxpayerData,
-      })
-
       // VALIDATION STRICTE
       if (!taxpayerData) {
         throw new Error('taxpayerData is null or undefined')

@@ -1,5 +1,3 @@
-// app/bot/core/ai/config/prompts.ts
-
 /**
  * Templates de prompts pour l'IA
  */

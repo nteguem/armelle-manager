@@ -1,35 +1,374 @@
 {
-  "common": {
-    "completed": "Workflow completed!",
-    "validation_error": "Validation error: {{error}}",
-    "cannot_go_back": "You cannot go back",
-    "navigation_hint": "Type 'back' to return | 'armelle' to cancel",
-    "navigation_forward_only": "Type 'fr' for French | 'en' for English",
-    "step_progress": "Step {{current}}/{{total}}"
-  },
+  "navigation_forward_only": "Type your answer",
+  "navigation_hint": "Type 'back' to go back",
   "onboarding": {
     "name": "Registration",
-
-    "collect_name": "Hi! I’m Armelle, your tax assistant in Cameroon.\nI can help you calculate your IGS, file your online declarations, meet your deadlines, and answer your general tax questions!\n\nTo get started, please enter your Name/Business name.\nExample: MBARGA FOUDA / ABC EXPRESS",
-
-    "searching_dgi": "Verifying your identity in the DGI database.\nPlease wait...\n\nConnecting to DGI services...",
-
+    "description": "Registration process for new users",
+    "collect_name_prompt": "Hi! I’m Armelle, your tax assistant in Cameroon.\nI can help you calculate your IGS, file your tax returns online, keep track of deadlines, and answer your general tax questions!\n\nTo get started, please enter your Name/Business name.\nExample: MBARGA FOUDA / ABC EXPRESS",
+    "searching_dgi": "Verifying your identity in the DGI database.\nPlease wait...\n---------------------------------------------\nConnecting to DGI services in progress...",
     "confirm_single": "One profile matches your name:\nPlease confirm if this is yours:",
-
     "select_multiple": "Several profiles match your name:\nPlease select yours:",
+    "too_many_results": "Too many results found ({{count}}+).\nPlease refine your search or continue without a DGI profile.",
+    "choice_refine": "Enter full name",
+    "choice_continue_without": "Continue without DGI profile",
+    "choice_not_me": "This is not my profile",
+    "choice_none": "None of these profiles",
+    "complete_full": "Profile configured - {{userName}}, NIU: {{niu}}\nWelcome {{userName}}! What can I do for you?",
+    "complete_partial": "⚠️ Partial profile - {{userName}}\nWelcome! What can I do for you?\n\nNo DGI taxpayer profile matches your name. You can create a new taxpayer file or link to an existing profile by typing \"profile\".",
+    "complete_partial_error": "⚠️ Partial profile - {{userName}}\nThe DGI website is temporarily unavailable for verification.\nYou will be able to link your profile later by typing \"profile\".\n\nWhat can I do for you?"
+  },
+  "igs_calculator": {
+    "name": "IGS Calculator",
+    "description": "Calculate your General Synthetic Tax based on your business information",
+    "sector_prompt": "Please select your sector of activity:",
+    "sector_formal": "Formal sector",
+    "sector_informal": "Informal sector",
+    "subcategory_formal_prompt": "You have chosen the formal sector.\nPlease select your subcategory:",
+    "subcategory_informal_prompt": "You have chosen the informal sector.\nPlease select your subcategory:",
+    "subcategory_formal_1": "Civil servant / Public sector employee",
+    "subcategory_formal_2": "Private sector employee",
+    "subcategory_formal_3": "International organization staff",
+    "subcategory_formal_4": "Liberal profession",
+    "subcategory_formal_5": "Executive or business leader",
+    "subcategory_informal_1": "Trade (sales, commerce)",
+    "subcategory_informal_2": "Crafts (creation, manufacturing)",
+    "subcategory_informal_3": "Agriculture and livestock",
+    "subcategory_informal_4": "Transport (motorbike taxi, taxi, delivery)",
+    "subcategory_informal_5": "Personal services (hairdressing, cleaning)",
+    "subcategory_informal_6": "Catering / Hospitality",
+    "subcategory_informal_7": "Technical services (garage, repairs)",
+    "subcategory_informal_8": "Other activities",
+    "previous_revenue_prompt": "Enter your turnover from the previous year (in FCFA):\n\nExample: 1500000 for 1.5 million FCFA\n(Enter digits only, no spaces)",
+    "current_revenue_prompt": "Enter your estimated turnover for the current year (in FCFA):\n\nExample: 1800000 for 1.8 million FCFA\n(Enter digits only, no spaces)",
+    "company_type_prompt": "⭐ GREAT! WE HAVE YOUR RESULT! ⭐\n\nTo send it to you, I need a few more details.\nWhat is the type of your business or activity?",
+    "legal_entity": "Legal entity (company, LLC, etc.)",
+    "individual": "Individual (sole proprietor)",
+    "name_prompt": "Enter your business name or your personal name as the responsible party:",
+    "phone_prompt": "Enter your contact phone number:\n\nExpected format: Cameroonian number\nExample: 677123456 or 237677123456",
+    "city_prompt": "Select your city:",
+    "city_yaounde": "Yaoundé",
+    "city_douala": "Douala",
+    "city_bafoussam": "Bafoussam",
+    "city_garoua": "Garoua",
+    "city_bamenda": "Bamenda",
+    "city_maroua": "Maroua",
+    "city_ngaoundere": "Ngaoundéré",
+    "city_bertoua": "Bertoua",
+    "city_buea": "Buea",
+    "city_ebolowa": "Ebolowa",
+    "city_other": "Other city",
+    "neighborhood_prompt": "Enter your neighborhood:",
+    "other_city_prompt": "Enter the name of your city:",
+    "niu_prompt": "Enter your NIU (Unique Identification Number):\n\nIf you do not have an NIU, type: N/A\nOtherwise, enter your NIU (minimum 12 characters)",
+    "confirmation_summary": "📋 SUMMARY OF YOUR INFORMATION\n\n🏢 Sector: {{sector}}\n🔸 Subcategory: {{subcategory}}\n\n💰 Turnover:\n  • Previous year: {{previousRevenue}} FCFA\n  • Current estimate: {{currentRevenue}} FCFA\n\n👤 Business information:\n  • Type: {{companyType}}\n  • Name: {{name}}\n  • Phone: {{phone}}\n  • City: {{city}}\n  • Neighborhood: {{neighborhood}}\n  • NIU: {{niu}}\n\n💸 CALCULATED IGS: {{calculatedIGS}} FCFA\n\n✅ Do you confirm this information?",
+    "confirm": "✅ Confirm and save",
+    "restart": "🔄 Restart entry",
+    "completion": "🎉 REGISTRATION SUCCESSFUL!\n\nYour information has been saved successfully.\n\n💰 Your calculated IGS: {{calculatedIGS}} FCFA\n📄 Calculation reference: {{companyId}}\n\nThank you for using our IGS calculator!",
+    "error_saving": "❌ ERROR WHILE SAVING\n\nWe could not save your information.\n\nError: {{error}}\n\nPlease try again or contact support.",
+    "validation": {
+      "invalid_amount": "The amount entered is not valid. Please enter digits only, without spaces or symbols.\n\nExample: 1500000 for 1.5 million FCFA",
+      "invalid_phone": "The phone number entered is not valid. Please enter a valid Cameroonian phone number.\n\nAccepted formats:\n• 677123456\n• 237677123456",
+      "invalid_niu": "The NIU entered is not valid. The NIU must be an alphanumeric string of at least 12 characters.\n\nIf you do not have an NIU, type: N/A",
+      "name_required": "The name cannot be empty. Please enter your business name or your personal name.",
+      "field_required": "This field cannot be empty. Please enter a value."
+    }
+  },
+  "niu_finder": {
+    "name": "Find my NIU",
+    "description": "Search for your Unique Identification Number in the DGI database",
 
-    "too_many_results": "⚠️ Too many results ({{count}}) found.\n\nPlease re-enter your full name to refine the search.",
+    "name_prompt": "Enter your full name or your company's name:\n\n💡 The system will search the DGI database\n📝 Example: \"Martin Paul\" or \"Entreprise SARL\"",
 
-    "completion_partial": "⚠️ Partial profile - {{userName}}\nWelcome! What can I do for you?\n\nNo DGI taxpayer matches your name. You can create a new taxpayer file or link to an existing profile by typing 'profile'.",
+    "no_results": "🔍 NO RESULTS FOUND\n\nNo taxpayer found with the name: \"{{name}}\"\n\n💡 Suggestions:\n• Check the spelling of the name\n• Try a different name\n• The taxpayer may not be registered with the DGI",
 
-    "completion_complete": "Profile configured - {{userName}}, NIU: {{niu}}\nWelcome {{userName}}! What can I do for you?",
+    "single_result": "🔍 RESULT FOUND\n\n📋 Name: {{name}}\n🆔 NIU: {{niu}}\n🏢 Tax center: {{centre}}\n📍 Regime: {{regime}}\n✅ Status: {{etat}}\n\nIs this you?",
 
-    "completion_error": "⚠️ Partial profile - {{userName}}\nDGI services are temporarily unavailable.\nYour profile has been created but remains partial.\n\nWelcome! What can I do for you?",
+    "multiple_results": "🔍 RESULTS FOUND ({{count}} taxpayers)",
 
-    "dgi_unavailable": "⚠️ DGI services are temporarily unavailable.\nYour profile remains partial for now.",
+    "single_result_final": "✅ NIU FOUND\n\n📋 Name: {{name}}\n🆔 NIU: {{niu}}\n🏢 Tax center: {{centre}}\n\n💡 Please note your NIU for your tax procedures!",
 
-    "no_taxpayer_found": "No taxpayer found for '{{name}}'",
+    "too_many_results": "🔍 TOO MANY RESULTS\n\nMore than 20 taxpayers found with the name: \"{{name}}\"\n\n💡 Please refine your search with a more specific name.",
+    "footer": "Type \"armelle\" for assistant | \"menu\" for options",
+    "search_error": "❌ SEARCH ERROR\n\n{{message}}\n\n💡 Please try again later or check your connection.",
 
-    "taxpayer_linked": "Taxpayer successfully linked"
-  }
+    "details_header": "✅ NIU FOUND",
+    "detail_name": "Name",
+    "detail_niu": "NIU",
+    "detail_centre": "Tax center",
+    "detail_regime": "Regime",
+    "detail_activity": "Activity",
+    "detail_status": "Status",
+
+    "note_save_niu": "💡 Please note your NIU for your tax procedures!",
+
+    "cancelled": "🚫 SEARCH CANCELLED\n\nThe NIU search was cancelled.\nYou can start a new search at any time.",
+
+    "format_error": "❌ Error displaying taxpayer details.",
+    "validation": {
+      "name_too_short": "The name must be at least 2 characters long."
+    }
+  },
+  "niu_request": {
+    "name": "NIU Request",
+    "description": "Selection of taxpayer type for tax identification number request",
+
+    "type_prompt": "What type of taxpayer are you?",
+    "type_physical_non_pro": "Individual - Non-professional",
+    "type_physical_pro": "Individual - Professional",
+    "type_morale": "Legal entity (Company, Organization...)",
+
+    "redirect_message": "🔄 Redirecting to the form: {workflowName}\n\nPlease wait..."
+  },
+
+  "niu_physical_non_pro": {
+    "name": "NIU Request - Individual (Non-professional)",
+    "description": "NIU request form for a non-professional individual",
+
+    "full_name_prompt": "Enter your full name:",
+
+    "gender_prompt": "Your gender:",
+    "gender_male": "Male",
+    "gender_female": "Female",
+
+    "marital_status_prompt": "Your marital status:",
+    "marital_single": "Single",
+    "marital_married": "Married",
+    "marital_widowed": "Widowed",
+    "marital_divorced": "Divorced",
+
+    "birth_date_prompt": "Date of birth (DD/MM/YYYY):",
+
+    "nationality_prompt": "Your nationality:",
+
+    "zone_type_prompt": "Type of residence area:",
+    "zone_urban": "Urban area (City)",
+    "zone_rural": "Rural area (Village)",
+
+    "city_prompt": "Your city:",
+    "region_prompt": "Your region:",
+
+    "neighborhood_prompt": "Your neighborhood (be specific):",
+    "village_prompt": "Your village:",
+
+    "geolocation_prompt": "Share your GPS location (optional)\nType 'N/A' if you don’t want to share:",
+
+    "confirmation_header": "📋 SUMMARY OF YOUR REQUEST",
+    "summary_name": "Name",
+    "summary_gender": "Gender",
+    "summary_marital": "Marital status",
+    "summary_birth_date": "Date of birth",
+    "summary_nationality": "Nationality",
+    "summary_address": "ADDRESS",
+    "summary_ville": "City",
+    "summary_région": "Region",
+    "summary_quartier": "Neighborhood",
+    "summary_village": "Village",
+    "summary_gps": "GPS position",
+
+    "payment_notice": "💳 Amount to pay: {amount} FCFA",
+
+    "confirm_and_pay": "✅ Confirm and proceed to payment",
+    "restart": "🔄 Restart the form",
+
+    "completion_success": "✅ Request successfully recorded!\n\n📋 Reference: {requestId}\n💳 Amount: {amount} FCFA\n\n⏳ You will be redirected to the payment page.",
+
+    "completion_error": "❌ Error while saving your request.\n\nError: {error}\n\nPlease try again.",
+
+    "validation": {
+      "invalid_date_format": "Invalid date format. Use DD/MM/YYYY",
+      "invalid_coordinates": "Invalid GPS coordinates. Expected format: latitude,longitude"
+    }
+  },
+
+  "niu_physical_pro": {
+    "name": "NIU Request - Individual (Professional)",
+    "description": "NIU request form for a professional individual",
+
+    "full_name_prompt": "Enter your full name:",
+
+    "gender_prompt": "Your gender:",
+    "gender_male": "Male",
+    "gender_female": "Female",
+
+    "marital_status_prompt": "Your marital status:",
+    "marital_single": "Single",
+    "marital_married": "Married",
+    "marital_widowed": "Widowed",
+    "marital_divorced": "Divorced",
+
+    "birth_date_prompt": "Date of birth (DD/MM/YYYY):",
+
+    "nationality_prompt": "Your nationality:",
+
+    "activity_sector_prompt": "Your activity sector:",
+    "sector_formal": "Formal sector",
+    "sector_informal": "Informal sector",
+
+    "activity_category_prompt": "Activity category:",
+    "category_formal_1": "Public sector employee",
+    "category_formal_2": "Private sector employee",
+    "category_formal_3": "International agent",
+    "category_formal_4": "Freelance professional",
+    "category_formal_5": "Executive",
+    "category_informal_1": "Trade",
+    "category_informal_2": "Craftsmanship",
+    "category_informal_3": "Agriculture",
+    "category_informal_4": "Transport",
+    "category_informal_5": "Personal services",
+    "category_informal_6": "Catering",
+    "category_informal_7": "Technical services",
+    "category_informal_8": "Other activities",
+
+    "zone_type_prompt": "Type of residence area:",
+    "zone_urban": "Urban area (City)",
+    "zone_rural": "Rural area (Village)",
+
+    "city_prompt": "Your city:",
+    "region_prompt": "Your region:",
+
+    "neighborhood_prompt": "Your neighborhood (be specific):",
+    "village_prompt": "Your village:",
+
+    "geolocation_prompt": "Share your GPS location (optional)\nType 'N/A' if you don’t want to share:",
+
+    "confirmation_header": "📋 SUMMARY OF YOUR REQUEST",
+    "summary_name": "Name",
+    "summary_gender": "Gender",
+    "summary_marital": "Marital status",
+    "summary_birth_date": "Date of birth",
+    "summary_nationality": "Nationality",
+    "summary_professional": "PROFESSIONAL ACTIVITY",
+    "summary_sector": "Sector",
+    "summary_category": "Category",
+    "summary_address": "ADDRESS",
+    "summary_ville": "City",
+    "summary_région": "Region",
+    "summary_quartier": "Neighborhood",
+    "summary_village": "Village",
+    "summary_gps": "GPS position",
+
+    "payment_notice": "💳 Amount to pay: {amount} FCFA",
+
+    "confirm_and_pay": "✅ Confirm and proceed to payment",
+    "restart": "🔄 Restart the form",
+
+    "completion_success": "✅ Request successfully recorded!\n\n📋 Reference: {requestId}\n💳 Amount: {amount} FCFA\n\n⏳ You will be redirected to the payment page.",
+
+    "completion_error": "❌ Error while saving your request.\n\nError: {error}\n\nPlease try again.",
+
+    "validation": {
+      "invalid_date_format": "Invalid date format. Use DD/MM/YYYY",
+      "invalid_coordinates": "Invalid GPS coordinates. Expected format: latitude,longitude"
+    }
+  },
+
+  "niu_morale": {
+    "name": "NIU Request - Legal Entity",
+    "description": "NIU request form for a legal entity (company, organization)",
+
+    "company_name_prompt": "Company name:",
+
+    "company_sigle_prompt": "Company abbreviation:",
+
+    "creation_date_prompt": "Date of creation (DD/MM/YYYY):",
+
+    "creation_place_prompt": "Place of creation:",
+
+    "legal_form_prompt": "Legal form:",
+    "legal_sarl": "LLC",
+    "legal_sa": "PLC",
+    "legal_sas": "SAS",
+    "legal_eurl": "Sole proprietorship (EURL)",
+    "legal_gie": "Economic interest group (GIE)",
+    "legal_other": "Other",
+
+    "rccm_prompt": "RCCM number:",
+
+    "manager_nationality_prompt": "Main manager’s nationality:",
+
+    "manager_name_prompt": "Main manager’s name:",
+
+    "manager_niu_prompt": "Manager’s NIU (if available, otherwise type 'N/A'):",
+
+    "projected_revenue_prompt": "Projected revenue (FCFA):",
+
+    "employee_count_prompt": "Number of employees:",
+
+    "capital_amount_prompt": "Share capital amount (FCFA):",
+
+    "has_shareholders_prompt": "Does the company have shareholders?",
+    "has_board_prompt": "Does the company have a board of directors?",
+    "yes": "Yes",
+    "no": "No",
+
+    "zone_type_prompt": "Headquarters area type:",
+    "zone_urban": "Urban area (City)",
+    "zone_rural": "Rural area (Village)",
+
+    "city_prompt": "Headquarters city:",
+    "region_prompt": "Headquarters region:",
+
+    "neighborhood_prompt": "Headquarters neighborhood (be specific):",
+    "village_prompt": "Headquarters village:",
+
+    "headquarters_status_prompt": "Headquarters status:",
+    "status_owner": "Owner",
+    "status_tenant": "Tenant",
+    "status_occupant": "Occupant",
+
+    "geolocation_prompt": "Headquarters GPS location (optional)\nType 'N/A' if you don’t want to share:",
+
+    "confirmation_header": "📋 SUMMARY OF YOUR REQUEST",
+    "summary_company": "COMPANY",
+    "summary_name": "Company name",
+    "summary_sigle": "Abbreviation",
+    "summary_creation_date": "Date of creation",
+    "summary_creation_place": "Place of creation",
+    "summary_legal_form": "Legal form",
+    "summary_rccm": "RCCM",
+    "summary_manager_info": "MAIN MANAGER",
+    "summary_manager_nationality": "Nationality",
+    "summary_manager_name": "Name",
+    "summary_manager_niu": "NIU",
+    "summary_financial": "FINANCIAL INFORMATION",
+    "summary_projected_revenue": "Projected revenue",
+    "summary_employees": "Employees",
+    "summary_capital": "Share capital",
+    "summary_shareholders": "Shareholders",
+    "summary_board": "Board of directors",
+    "summary_headquarters": "HEADQUARTERS",
+    "summary_ville": "City",
+    "summary_région": "Region",
+    "summary_quartier": "Neighborhood",
+    "summary_village": "Village",
+    "summary_status": "Status",
+    "summary_gps": "GPS position",
+
+    "payment_notice": "💳 Amount to pay: {amount} FCFA",
+
+    "confirm_and_pay": "✅ Confirm and proceed to payment",
+    "restart": "🔄 Restart the form",
+
+    "completion_success": "✅ Request successfully recorded!\n\n📋 Reference: {requestId}\n💳 Amount: {amount} FCFA\n\n⏳ You will be redirected to the payment page.",
+
+    "completion_error": "❌ Error while saving your request.\n\nError: {error}\n\nPlease try again.",
+
+    "validation": {
+      "invalid_date_format": "Invalid date format. Use DD/MM/YYYY",
+      "invalid_amount": "Invalid amount. Please enter a number",
+      "invalid_number": "Invalid number",
+      "invalid_niu": "Invalid NIU. Expected format: at least 12 alphanumeric characters",
+      "invalid_coordinates": "Invalid GPS coordinates. Expected format: latitude,longitude"
+    }
+  },
+
+  "validation_error": "❌ {{error}}",
+  "invalid_choice": "Invalid choice. Please select a valid number.",
+  "field_required": "This field is required.",
+  "min_length": "Minimum {{min}} characters required.",
+  "max_length": "Maximum {{max}} characters allowed.",
+  "invalid_format": "Invalid format.",
+  "validation_failed": "Validation failed.",
+  "cannot_go_back": "You cannot go back.",
+  "cancelled": "Workflow cancelled."
 }

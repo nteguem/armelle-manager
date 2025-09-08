@@ -23,19 +23,29 @@ export default class WhatsAppAdapter implements ChannelAdapter {
   private socket: WASocket | null = null
   private connectionStatus: boolean = false
   private onMessageReceived?: (message: IncomingMessage) => Promise<void>
+  private reconnectAttempts: number = 0
+  private maxReconnectAttempts: number = 5
+  private reconnectTimeout: NodeJS.Timeout | null = null
 
   public async start(): Promise<void> {
-    const { state, saveCreds } = await useMultiFileAuthState('storage/whatsapp_auth')
+    try {
+      const { state, saveCreds } = await useMultiFileAuthState('storage/whatsapp_auth')
 
-    this.socket = makeWASocket({
-      auth: state,
-      logger: this.createLogger(),
-      browser: ['ArmelleBotManager', 'Chrome', '1.0.0'],
-    })
+      this.socket = makeWASocket({
+        auth: state,
+        logger: this.createLogger(),
+        browser: ['ArmelleBotManager', 'Chrome', '1.0.0'],
+        connectTimeoutMs: 60000,
+        defaultQueryTimeoutMs: 60000,
+      })
 
-    this.socket.ev.on('creds.update', saveCreds)
-    this.socket.ev.on('connection.update', this.handleConnectionUpdate.bind(this))
-    this.socket.ev.on('messages.upsert', this.handleMessages.bind(this))
+      this.socket.ev.on('creds.update', saveCreds)
+      this.socket.ev.on('connection.update', this.handleConnectionUpdate.bind(this))
+      this.socket.ev.on('messages.upsert', this.handleMessages.bind(this))
+    } catch (error) {
+      console.error('❌ Failed to start WhatsApp:', error)
+      this.scheduleReconnect(10000)
+    }
   }
 
   public async sendMessage(message: OutgoingMessage): Promise<void> {
@@ -43,12 +53,15 @@ export default class WhatsAppAdapter implements ChannelAdapter {
       throw new Error('WhatsApp not connected')
     }
 
-    // Format correct pour Baileys
     const formattedJid = message.to.includes('@') ? message.to : `${message.to}@s.whatsapp.net`
 
-    await this.simulateTyping(formattedJid, message.text) // Changé content en text
-    await this.socket.sendMessage(formattedJid, { text: message.text }) // Changé content en text
-    console.log(`📤 Message sent`)
+    try {
+      await this.simulateTyping(formattedJid, message.text)
+      await this.socket.sendMessage(formattedJid, { text: message.text })
+    } catch (error) {
+      console.error('❌ Failed to send message:', error)
+      throw error
+    }
   }
 
   public isConnected(): boolean {
@@ -62,14 +75,21 @@ export default class WhatsAppAdapter implements ChannelAdapter {
   }
 
   public async stop(): Promise<void> {
+    this.clearReconnectTimeout()
+
     const keepAlive = process.env.WHATSAPP_KEEP_ALIVE === 'true'
 
     if (!keepAlive && this.socket && this.connectionStatus) {
-      await this.socket.logout()
+      try {
+        await this.socket.logout()
+      } catch (error) {
+        console.warn('⚠️ Error during logout')
+      }
     }
 
     this.socket = null
     this.connectionStatus = false
+    this.reconnectAttempts = 0
     console.log('WhatsApp stopped')
   }
 
@@ -82,23 +102,76 @@ export default class WhatsAppAdapter implements ChannelAdapter {
 
     if (connection === 'open') {
       this.connectionStatus = true
+      this.reconnectAttempts = 0
       console.log('✅ WhatsApp connected')
     } else if (connection === 'close') {
       this.connectionStatus = false
-      console.log('❌ Connection closed')
+      this.handleDisconnection(lastDisconnect)
+    }
+  }
 
-      const shouldReconnect =
-        lastDisconnect?.error &&
-        (lastDisconnect.error as any)?.output?.statusCode !== DisconnectReason.loggedOut
+  private handleDisconnection(lastDisconnect: any): void {
+    const error = lastDisconnect?.error
+    const statusCode = error?.output?.statusCode
 
-      if (shouldReconnect) {
-        console.log('🔄 Reconnecting in 5 seconds...')
-        setTimeout(() => this.start(), 5000)
-      } else {
-        console.log('📱 Please restart to scan QR again')
-      }
-    } else if (connection === 'connecting') {
-      console.log('🔄 Connecting...')
+    console.log('❌ Connection closed')
+
+    // Gestion des différents types de déconnexion
+    switch (statusCode) {
+      case DisconnectReason.loggedOut:
+        console.log('📱 Logged out - restart required')
+        return
+
+      case 440: // Conflict
+        console.log('🚫 Session conflict detected')
+        this.scheduleReconnect(30000) // Attendre 30s pour les conflits
+        return
+
+      case DisconnectReason.connectionClosed:
+      case DisconnectReason.connectionLost:
+      case DisconnectReason.connectionReplaced:
+        this.scheduleReconnect(5000)
+        return
+
+      case DisconnectReason.restartRequired:
+        console.log('🔄 Restart required')
+        this.scheduleReconnect(10000)
+        return
+
+      case DisconnectReason.timedOut:
+        this.scheduleReconnect(15000)
+        return
+
+      default:
+        if (error) {
+          this.scheduleReconnect(8000)
+        }
+        return
+    }
+  }
+
+  private scheduleReconnect(delay: number): void {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.log('❌ Max reconnection attempts reached')
+      return
+    }
+
+    this.clearReconnectTimeout()
+    this.reconnectAttempts++
+
+    console.log(
+      `🔄 Reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})`
+    )
+
+    this.reconnectTimeout = setTimeout(() => {
+      this.start()
+    }, delay)
+  }
+
+  private clearReconnectTimeout(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout)
+      this.reconnectTimeout = null
     }
   }
 
@@ -118,7 +191,7 @@ export default class WhatsAppAdapter implements ChannelAdapter {
       await new Promise((resolve) => setTimeout(resolve, typingDurationMs))
       await this.socket.sendPresenceUpdate('paused', jid)
     } catch (error) {
-      console.warn('⚠️ Typing simulation failed')
+      // Erreur silencieuse pour la simulation de frappe
     }
   }
 
@@ -134,22 +207,18 @@ export default class WhatsAppAdapter implements ChannelAdapter {
       const phoneNumber = message.key.remoteJid?.split('@')[0]
       if (!phoneNumber || !message.key.remoteJid?.includes('@s.whatsapp.net')) continue
 
-      // Créer le message avec les bons champs
       const incomingMessage: IncomingMessage = {
         channel: 'whatsapp',
-        from: phoneNumber, // Changé channelUserId en from
-        text: content.trim(), // Changé content en text
-        type: 'text', // Changé messageType en type
+        from: phoneNumber,
+        text: content.trim(),
+        type: 'text',
         timestamp: new Date(),
         metadata: {
-          // Changé rawData en metadata
           messageInfo: message,
           timestamp: message.messageTimestamp,
           messageId: message.key.id,
         },
       }
-
-      console.log(`📥 Message from ${phoneNumber}: ${content.substring(0, 30)}...`)
 
       if (this.onMessageReceived) {
         try {

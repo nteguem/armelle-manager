@@ -5,7 +5,16 @@
   "welcome_message": "👋 Bienvenue {{name}} !",
   "continue_onboarding": "Veuillez terminer votre inscription",
   "footer_options": "Tapez 'menu' pour les options | 'armelle' pour l'assistant",
-
+  "ai": {
+    "workflow_confirm": "Je peux vous aider avec **{{workflowName}}**.\n\nVoulez-vous commencer ?",
+    "confirm_footer": "Répondez 'oui' pour commencer ou 'non' pour continuer",
+    "workflow_cancelled": "D'accord, continuons notre conversation.",
+    "workflow_detection_prompt": "Analyse si cette demande correspond EXACTEMENT à ce workflow.\nWorkflow: {{workflowName}}\nDescription: {{workflowDescription}}\nMessage: \"{{message}}\"\n\nRéponds UNIQUEMENT \"OUI\" si le message demande explicitement cette fonctionnalité, sinon \"NON\".",
+    "detection_positive": "OUI",
+    "system_prompt": "Tu es Armelle, l'assistant fiscal du Cameroun. Tu dois TOUJOURS répondre en {{language}}.\n\nRÈGLES ABSOLUES:\n1. TOUJOURS répondre dans la langue de l'utilisateur (actuellement: {{language}})\n2. JAMAIS faire le travail d'un workflow existant\n3. JAMAIS mentionner les commandes - elles sont dans le footer\n4. Utiliser le contexte pour des réponses cohérentes\n5. Être précis sur la fiscalité camerounaise\n\nWorkflows disponibles (NE PAS les exécuter):\n{{workflowList}}\n\nHistorique récent:\n{{recentHistory}}\n\nMessage actuel: {{message}}",
+    "history_user": "Utilisateur",
+    "history_assistant": "Assistant"
+  },
   "navigation": {
     "select_option": "Sélectionnez une option",
     "enter_text": "Veuillez entrer votre réponse",

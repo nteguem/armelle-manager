@@ -1,35 +1,390 @@
 {
-  "common": {
-    "completed": "Workflow terminé !",
-    "validation_error": "Erreur de validation : {{error}}",
-    "cannot_go_back": "Impossible de revenir en arrière",
-    "navigation_hint": "Tapez 'retour' pour revenir | 'armelle' pour annuler",
-    "navigation_forward_only": "Tapez 'fr' pour français | 'en' for English",
-    "step_progress": "Étape {{current}}/{{total}}"
-  },
+  "navigation_forward_only": "Tapez votre réponse",
+  "navigation_hint": "Tapez 'retour' pour revenir en arrière",
   "onboarding": {
     "name": "Inscription",
-
-    "collect_name": "Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
-
-    "searching_dgi": "Vérification de votre identité dans la base DGI.\nVeuillez patienter...\n\nConnexion avec les services DGI en cours...",
-
+    "description": "Processus d'inscription pour nouveaux utilisateurs",
+    "collect_name_prompt": "Salut ! Je suis Armelle, votre assistante fiscale du Cameroun.\nJe peux vous aider à calculer votre IGS, faire vos télédéclarations, respecter vos échéances et répondre à vos questions fiscales générales !\n\nPour commencer, saisissez Nom/Raison sociale.\nExemple : MBARGA FOUDA / ABC EXPRESS",
+    "searching_dgi": "Vérification de votre identité dans la base DGI.\nVeuillez patienter...\n---------------------------------------------\nConnexion avec les services DGI en cours...",
     "confirm_single": "Un profil correspond à votre nom :\nVeuillez confirmer si c'est bien le vôtre :",
-
     "select_multiple": "Plusieurs profils correspondent à votre nom :\nVeuillez sélectionner le vôtre :",
+    "too_many_results": "Trop de résultats trouvés ({{count}}+).\nVeuillez affiner votre recherche ou continuer sans profil DGI.",
+    "choice_refine": "Saisir nom complet",
+    "choice_continue_without": "Continuer sans profil DGI",
+    "choice_not_me": "Ce n'est pas mon profil",
+    "choice_none": "Aucun de ces profils",
+    "complete_full": "Profil configuré - {{userName}}, NIU: {{niu}}\nBienvenue {{userName}} ! Que puis-je faire pour vous ?",
+    "complete_partial": "⚠️ Profil partiel - {{userName}}\nBienvenue ! Que puis-je faire pour vous ?\n\nAucun contribuable DGI ne correspond à votre nom. Vous pouvez créer un nouveau dossier contribuable ou vous relier à un profil existant en tapant \"profil\".",
+    "complete_partial_error": "⚠️ Profil partiel - {{userName}}\nLe site DGI est temporairement indisponible pour la vérification.\nVous pourrez lier votre profil plus tard en tapant \"profil\".\n\nQue puis-je faire pour vous ?"
+  },
+  "igs_calculator": {
+    "name": "Calcul IGS",
+    "description": "Calculez votre Impôt Général Synthétique basé sur vos informations d'entreprise",
 
-    "too_many_results": "⚠️ Trop de résultats ({{count}}) trouvés.\n\nVeuillez ressaisir votre nom complet pour affiner la recherche.",
+    "sector_prompt": "Veuillez sélectionner votre secteur d'activité:",
+    "sector_formal": "Secteur FORMEL",
+    "sector_informal": "Secteur INFORMEL",
 
-    "completion_partial": "⚠️ Profil partiel - {{userName}}\nBienvenue ! Que puis-je faire pour vous ?\n\nAucun contribuable DGI ne correspond à votre nom. Vous pouvez créer un nouveau dossier contribuable ou vous relier à un profil existant en tapant 'profil'.",
+    "subcategory_formal_prompt": "Vous avez choisi le secteur FORMEL.\nVeuillez sélectionner votre sous-catégorie:",
+    "subcategory_informal_prompt": "Vous avez choisi le secteur INFORMEL.\nVeuillez sélectionner votre sous-catégorie:",
 
-    "completion_complete": "Profil configuré - {{userName}}, NIU: {{niu}}\nBienvenue {{userName}} ! Que puis-je faire pour vous ?",
+    "subcategory_formal_1": "Fonctionnaire / Salarié du secteur public",
+    "subcategory_formal_2": "Salarié du secteur privé",
+    "subcategory_formal_3": "Agent d'organismes internationaux",
+    "subcategory_formal_4": "Profession libérale",
+    "subcategory_formal_5": "Cadre ou dirigeant d'entreprise",
 
-    "completion_error": "⚠️ Profil partiel - {{userName}}\nLes services DGI sont temporairement indisponibles.\nVotre profil a été créé mais reste partiel.\n\nBienvenue ! Que puis-je faire pour vous ?",
+    "subcategory_informal_1": "Commerce (vente, négoce)",
+    "subcategory_informal_2": "Artisanat (création, fabrication)",
+    "subcategory_informal_3": "Agriculture et élevage",
+    "subcategory_informal_4": "Transport (moto-taxi, taxi, livraison)",
+    "subcategory_informal_5": "Services personnels (coiffure, nettoyage)",
+    "subcategory_informal_6": "Restauration / Hôtellerie",
+    "subcategory_informal_7": "Services techniques (garage, réparations)",
+    "subcategory_informal_8": "Autres activités",
 
-    "dgi_unavailable": "⚠️ Les services DGI sont temporairement indisponibles.\nVotre profil reste partiel pour le moment.",
+    "previous_revenue_prompt": "Entrez votre chiffre d'affaires de l'année précédente (en FCFA):\n\nExemple: 1500000 pour 1,5 million FCFA\n(Entrez uniquement des chiffres, sans espaces)",
 
-    "no_taxpayer_found": "Aucun contribuable trouvé pour '{{name}}'",
+    "current_revenue_prompt": "Entrez votre estimation du chiffre d'affaires pour l'année en cours (en FCFA):\n\nExemple: 1800000 pour 1,8 million FCFA\n(Entrez uniquement des chiffres, sans espaces)",
 
-    "taxpayer_linked": "Contribuable lié avec succès"
-  }
+    "company_type_prompt": "⭐ SUPER ! NOUS AVONS VOTRE RÉSULTAT ! ⭐\n\nPour vous l'envoyer, j'ai besoin de quelques informations supplémentaires.\nQuel est le type de votre entreprise ou activité?",
+    "legal_entity": "Personne morale (société, SARL, etc.)",
+    "individual": "Personne physique (entrepreneur individuel)",
+
+    "name_prompt": "Entrez le nom de votre entreprise ou votre nom en tant que responsable:",
+
+    "phone_prompt": "Entrez votre numéro de téléphone de contact:\n\nFormat attendu: numéro camerounais\nExemple: 677123456 ou 237677123456",
+
+    "city_prompt": "Sélectionnez votre ville:",
+    "city_yaounde": "Yaoundé",
+    "city_douala": "Douala",
+    "city_bafoussam": "Bafoussam",
+    "city_garoua": "Garoua",
+    "city_bamenda": "Bamenda",
+    "city_maroua": "Maroua",
+    "city_ngaoundere": "Ngaoundéré",
+    "city_bertoua": "Bertoua",
+    "city_buea": "Buea",
+    "city_ebolowa": "Ebolowa",
+    "city_other": "Autre ville",
+
+    "neighborhood_prompt": "Entrez votre quartier:",
+    "other_city_prompt": "Entrez le nom de votre ville:",
+
+    "niu_prompt": "Entrez votre NIU (Numéro d'Identification Unique):\n\nSi vous n'avez pas de NIU, tapez: N/A\nSinon, entrez votre NIU (12 caractères minimum)",
+
+    "confirmation_summary": "📋 RÉCAPITULATIF DE VOS INFORMATIONS\n\n🏢 Secteur: {{sector}}\n🔸 Sous-catégorie: {{subcategory}}\n\n💰 Chiffre d'affaires:\n  • Année précédente: {{previousRevenue}} FCFA\n  • Estimation courante: {{currentRevenue}} FCFA\n\n👤 Informations entreprise:\n  • Type: {{companyType}}\n  • Nom: {{name}}\n  • Téléphone: {{phone}}\n  • Ville: {{city}}\n  • Quartier: {{neighborhood}}\n  • NIU: {{niu}}\n\n💸 IGS CALCULÉ: {{calculatedIGS}} FCFA\n\n✅ Confirmez-vous ces informations?",
+
+    "confirm": "✅ Confirmer et enregistrer",
+    "restart": "🔄 Recommencer la saisie",
+
+    "completion": "🎉 ENREGISTREMENT RÉUSSI!\n\nVos informations ont été sauvegardées avec succès.\n\n💰 Votre IGS calculé: {{calculatedIGS}} FCFA\n📄 Référence du calcul: {{companyId}}\n\nMerci d'avoir utilisé notre calculateur IGS!",
+
+    "error_saving": "❌ ERREUR LORS DE L'ENREGISTREMENT\n\nNous n'avons pas pu sauvegarder vos informations.\n\nErreur: {{error}}\n\nVeuillez réessayer ou contacter le support.",
+
+    "validation": {
+      "invalid_amount": "Le montant saisi n'est pas valide. Veuillez entrer uniquement des chiffres sans espaces ni symboles.\n\nExemple: 1500000 pour 1,5 million FCFA",
+      "invalid_phone": "Le numéro de téléphone saisi n'est pas valide. Veuillez saisir un numéro de téléphone camerounais valide.\n\nFormats acceptés:\n• 677123456\n• 237677123456",
+      "invalid_niu": "Le NIU saisi n'est pas valide. Le NIU doit être une chaîne alphanumérique de 12 caractères minimum.\n\nSi vous n'avez pas de NIU, tapez: N/A",
+      "name_required": "Le nom ne peut pas être vide. Veuillez entrer le nom de votre entreprise ou votre nom.",
+      "field_required": "Ce champ ne peut pas être vide. Veuillez saisir une valeur."
+    }
+  },
+  "niu_finder": {
+    "name": "Retrouver mon NIU",
+    "description": "Recherchez votre Numéro d'Identification Unique dans la base DGI",
+
+    "name_prompt": "Entrez votre nom complet ou celui de votre entreprise:\n\n💡 Le système recherchera dans la base de données DGI\n📝 Exemple: \"Martin Paul\" ou \"Entreprise SARL\"",
+
+    "no_results": "🔍 AUCUN RÉSULTAT TROUVÉ\n\nAucun contribuable trouvé avec le nom: \"{{name}}\"\n\n💡 Suggestions:\n• Vérifiez l'orthographe du nom\n• Essayez avec un nom différent\n• Le contribuable n'est peut-être pas enregistré à la DGI",
+
+    "single_result": "🔍 RÉSULTAT TROUVÉ\n\n📋 Nom: {{name}}\n🆔 NIU: {{niu}}\n🏢 Centre fiscal: {{centre}}\n📍 Régime: {{regime}}\n✅ État: {{etat}}\n\nEst-ce vous?",
+
+    "multiple_results": "🔍 RÉSULTATS TROUVÉS ({{count}} contribuables)",
+
+    "single_result_final": "✅ NIU TROUVÉ\n\n📋 Nom: {{name}}\n🆔 NIU: {{niu}}\n🏢 Centre fiscal: {{centre}}\n\n💡 Notez bien votre NIU pour vos démarches fiscales!",
+    "footer": "Taper  \"armelle\" pour l'assistant | \"menu\" pour les options",
+
+    "too_many_results": "🔍 TROP DE RÉSULTATS\n\nPlus de 20 contribuables trouvés avec le nom: \"{{name}}\"\n\n💡 Veuillez préciser votre recherche avec un nom plus spécifique.",
+
+    "search_error": "❌ ERREUR DE RECHERCHE\n\n{{message}}\n\n💡 Veuillez réessayer plus tard ou vérifier votre connexion.",
+
+    "details_header": "✅ NIU TROUVÉ",
+    "detail_name": "Nom",
+    "detail_niu": "NIU",
+    "detail_centre": "Centre fiscal",
+    "detail_regime": "Régime",
+    "detail_activity": "Activité",
+    "detail_status": "État",
+
+    "note_save_niu": "💡 Notez bien votre NIU pour vos démarches fiscales!",
+
+    "cancelled": "🚫 RECHERCHE ANNULÉE\n\nLa recherche de NIU a été annulée.\nVous pouvez relancer une nouvelle recherche à tout moment.",
+
+    "format_error": "❌ Erreur lors de l'affichage des détails du contribuable.",
+    "validation": {
+      "name_too_short": "Le nom doit contenir au moins 2 caractères."
+    }
+  },
+  "niu_request": {
+    "name": "Demande de NIU",
+    "description": "Sélection du type de contribuable pour la demande d'identifiant fiscal",
+
+    "type_prompt": "Quel type de contribuable êtes-vous ?",
+    "type_physical_non_pro": "Personne physique non professionnelle",
+    "type_physical_pro": "Personne physique professionnelle",
+    "type_morale": "Personne morale (Société, Organisme...)",
+
+    "redirect_message": "🔄 Redirection vers le formulaire : {workflowName}\n\nVeuillez patienter..."
+  },
+  "niu_physical_non_pro": {
+    "name": "Demande NIU - Personne Physique Non Professionnelle",
+    "description": "Formulaire de demande NIU pour personne physique non professionnelle",
+
+    "full_name_prompt": "Saisissez votre nom complet :",
+
+    "gender_prompt": "Votre sexe :",
+    "gender_male": "Masculin",
+    "gender_female": "Féminin",
+
+    "marital_status_prompt": "Votre état civil :",
+    "marital_single": "Célibataire",
+    "marital_married": "Marié(e)",
+    "marital_widowed": "Veuf/Veuve",
+    "marital_divorced": "Divorcé(e)",
+
+    "birth_date_prompt": "Date de naissance (JJ/MM/AAAA) :",
+
+    "nationality_prompt": "Votre nationalité :",
+
+    "zone_type_prompt": "Type de zone de résidence :",
+    "zone_urban": "Zone urbaine (Ville)",
+    "zone_rural": "Zone rurale (Village)",
+
+    "city_prompt": "Votre ville :",
+    "region_prompt": "Votre région :",
+
+    "neighborhood_prompt": "Votre quartier (soyez précis) :",
+    "village_prompt": "Votre village :",
+
+    "geolocation_prompt": "Partagez votre position GPS (facultatif)\nTapez 'N/A' si vous ne souhaitez pas partager :",
+
+    "confirmation_header": "📋 RÉCAPITULATIF DE VOTRE DEMANDE",
+    "summary_name": "Nom",
+    "summary_gender": "Sexe",
+    "summary_marital": "État civil",
+    "summary_birth_date": "Date de naissance",
+    "summary_nationality": "Nationalité",
+    "summary_address": "ADRESSE",
+    "summary_ville": "Ville",
+    "summary_région": "Région",
+    "summary_quartier": "Quartier",
+    "summary_village": "Village",
+    "summary_gps": "Position GPS",
+
+    "payment_notice": "💳 Montant à payer : {amount} FCFA",
+
+    "confirm_and_pay": "✅ Confirmer et procéder au paiement",
+    "restart": "🔄 Recommencer le formulaire",
+
+    "completion_success": "✅ Demande enregistrée avec succès !\n\n📋 Référence : {requestId}\n💳 Montant : {amount} FCFA\n\n⏳ Vous allez être redirigé vers le paiement.",
+
+    "completion_error": "❌ Erreur lors de l'enregistrement de votre demande.\n\nErreur : {error}\n\nVeuillez réessayer.",
+
+    "validation": {
+      "invalid_date_format": "Format de date invalide. Utilisez JJ/MM/AAAA",
+      "invalid_coordinates": "Coordonnées GPS invalides. Format attendu : latitude,longitude"
+    }
+  },
+
+  "niu_physical_pro": {
+    "name": "Demande NIU - Personne Physique Professionnelle",
+    "description": "Formulaire de demande NIU pour personne physique professionnelle",
+
+    "full_name_prompt": "Saisissez votre nom complet :",
+
+    "gender_prompt": "Votre sexe :",
+    "gender_male": "Masculin",
+    "gender_female": "Féminin",
+
+    "marital_status_prompt": "Votre état civil :",
+    "marital_single": "Célibataire",
+    "marital_married": "Marié(e)",
+    "marital_widowed": "Veuf/Veuve",
+    "marital_divorced": "Divorcé(e)",
+
+    "birth_date_prompt": "Date de naissance (JJ/MM/AAAA) :",
+
+    "nationality_prompt": "Votre nationalité :",
+
+    "activity_sector_prompt": "Votre secteur d'activité :",
+    "sector_formal": "Secteur formel",
+    "sector_informal": "Secteur informel",
+
+    "activity_category_prompt": "Catégorie d'activité :",
+    "category_formal_1": "Employé du secteur public",
+    "category_formal_2": "Employé du secteur privé",
+    "category_formal_3": "Agent international",
+    "category_formal_4": "Profession libérale",
+    "category_formal_5": "Cadre dirigeant",
+    "category_informal_1": "Commerce",
+    "category_informal_2": "Artisanat",
+    "category_informal_3": "Agriculture",
+    "category_informal_4": "Transport",
+    "category_informal_5": "Services personnels",
+    "category_informal_6": "Restauration",
+    "category_informal_7": "Services techniques",
+    "category_informal_8": "Autres activités",
+
+    "zone_type_prompt": "Type de zone de résidence :",
+    "zone_urban": "Zone urbaine (Ville)",
+    "zone_rural": "Zone rurale (Village)",
+
+    "city_prompt": "Votre ville :",
+    "region_prompt": "Votre région :",
+
+    "neighborhood_prompt": "Votre quartier (soyez précis) :",
+    "village_prompt": "Votre village :",
+
+    "geolocation_prompt": "Partagez votre position GPS (facultatif)\nTapez 'N/A' si vous ne souhaitez pas partager :",
+
+    "confirmation_header": "📋 RÉCAPITULATIF DE VOTRE DEMANDE",
+    "summary_name": "Nom",
+    "summary_gender": "Sexe",
+    "summary_marital": "État civil",
+    "summary_birth_date": "Date de naissance",
+    "summary_nationality": "Nationalité",
+    "summary_professional": "ACTIVITÉ PROFESSIONNELLE",
+    "summary_sector": "Secteur",
+    "summary_category": "Catégorie",
+    "summary_address": "ADRESSE",
+    "summary_ville": "Ville",
+    "summary_région": "Région",
+    "summary_quartier": "Quartier",
+    "summary_village": "Village",
+    "summary_gps": "Position GPS",
+
+    "payment_notice": "💳 Montant à payer : {amount} FCFA",
+
+    "confirm_and_pay": "✅ Confirmer et procéder au paiement",
+    "restart": "🔄 Recommencer le formulaire",
+
+    "completion_success": "✅ Demande enregistrée avec succès !\n\n📋 Référence : {requestId}\n💳 Montant : {amount} FCFA\n\n⏳ Vous allez être redirigé vers le paiement.",
+
+    "completion_error": "❌ Erreur lors de l'enregistrement de votre demande.\n\nErreur : {error}\n\nVeuillez réessayer.",
+
+    "validation": {
+      "invalid_date_format": "Format de date invalide. Utilisez JJ/MM/AAAA",
+      "invalid_coordinates": "Coordonnées GPS invalides. Format attendu : latitude,longitude"
+    }
+  },
+
+  "niu_morale": {
+    "name": "Demande NIU - Personne Morale",
+    "description": "Formulaire de demande NIU pour personne morale (société, organisme)",
+
+    "company_name_prompt": "Raison sociale de l'entreprise :",
+
+    "company_sigle_prompt": "Sigle de l'entreprise :",
+
+    "creation_date_prompt": "Date de création (JJ/MM/AAAA) :",
+
+    "creation_place_prompt": "Lieu de création :",
+
+    "legal_form_prompt": "Forme juridique :",
+    "legal_sarl": "SARL",
+    "legal_sa": "SA",
+    "legal_sas": "SAS",
+    "legal_eurl": "EURL",
+    "legal_gie": "GIE",
+    "legal_other": "Autre",
+
+    "rccm_prompt": "Numéro RCCM :",
+
+    "manager_nationality_prompt": "Nationalité du dirigeant principal :",
+
+    "manager_name_prompt": "Nom du dirigeant principal :",
+
+    "manager_niu_prompt": "NIU du dirigeant (si disponible, sinon tapez 'N/A') :",
+
+    "projected_revenue_prompt": "Chiffre d'affaires projeté (FCFA) :",
+
+    "employee_count_prompt": "Nombre d'employés :",
+
+    "capital_amount_prompt": "Montant du capital social (FCFA) :",
+
+    "has_shareholders_prompt": "L'entreprise a-t-elle des actionnaires ?",
+    "has_board_prompt": "L'entreprise a-t-elle un conseil d'administration ?",
+    "yes": "Oui",
+    "no": "Non",
+
+    "zone_type_prompt": "Type de zone du siège social :",
+    "zone_urban": "Zone urbaine (Ville)",
+    "zone_rural": "Zone rurale (Village)",
+
+    "city_prompt": "Ville du siège social :",
+    "region_prompt": "Région du siège social :",
+
+    "neighborhood_prompt": "Quartier du siège social (soyez précis) :",
+    "village_prompt": "Village du siège social :",
+
+    "headquarters_status_prompt": "Statut du siège social :",
+    "status_owner": "Propriétaire",
+    "status_tenant": "Locataire",
+    "status_occupant": "Simple occupant",
+
+    "geolocation_prompt": "Position GPS du siège social (facultatif)\nTapez 'N/A' si vous ne souhaitez pas partager :",
+
+    "confirmation_header": "📋 RÉCAPITULATIF DE VOTRE DEMANDE",
+    "summary_company": "ENTREPRISE",
+    "summary_name": "Raison sociale",
+    "summary_sigle": "Sigle",
+    "summary_creation_date": "Date de création",
+    "summary_creation_place": "Lieu de création",
+    "summary_legal_form": "Forme juridique",
+    "summary_rccm": "RCCM",
+    "summary_manager_info": "DIRIGEANT PRINCIPAL",
+    "summary_manager_nationality": "Nationalité",
+    "summary_manager_name": "Nom",
+    "summary_manager_niu": "NIU",
+    "summary_financial": "INFORMATIONS FINANCIÈRES",
+    "summary_projected_revenue": "CA projeté",
+    "summary_employees": "Employés",
+    "summary_capital": "Capital social",
+    "summary_shareholders": "Actionnaires",
+    "summary_board": "Conseil d'administration",
+    "summary_headquarters": "SIÈGE SOCIAL",
+    "summary_ville": "Ville",
+    "summary_région": "Région",
+    "summary_quartier": "Quartier",
+    "summary_village": "Village",
+    "summary_status": "Statut",
+    "summary_gps": "Position GPS",
+
+    "payment_notice": "💳 Montant à payer : {amount} FCFA",
+
+    "confirm_and_pay": "✅ Confirmer et procéder au paiement",
+    "restart": "🔄 Recommencer le formulaire",
+
+    "completion_success": "✅ Demande enregistrée avec succès !\n\n📋 Référence : {requestId}\n💳 Montant : {amount} FCFA\n\n⏳ Vous allez être redirigé vers le paiement.",
+
+    "completion_error": "❌ Erreur lors de l'enregistrement de votre demande.\n\nErreur : {error}\n\nVeuillez réessayer.",
+
+    "validation": {
+      "invalid_date_format": "Format de date invalide. Utilisez JJ/MM/AAAA",
+      "invalid_amount": "Montant invalide. Saisissez un nombre",
+      "invalid_number": "Nombre invalide",
+      "invalid_niu": "NIU invalide. Format attendu : 12 caractères alphanumériques minimum",
+      "invalid_coordinates": "Coordonnées GPS invalides. Format attendu : latitude,longitude"
+    }
+  },
+  "validation_error": "❌ {{error}}",
+  "invalid_choice": "Choix invalide. Veuillez sélectionner un numéro valide.",
+  "field_required": "Ce champ est requis.",
+  "min_length": "Minimum {{min}} caractères requis.",
+  "max_length": "Maximum {{max}} caractères autorisés.",
+  "invalid_format": "Format invalide.",
+  "validation_failed": "Validation échouée.",
+  "cannot_go_back": "Impossible de revenir en arrière.",
+  "cancelled": "Workflow annulé."
 }
