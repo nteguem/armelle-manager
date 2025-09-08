@@ -176,8 +176,8 @@ export default class AIEngine {
     })
 
     return this.messageBuilder.build({
-      content: this.i18n.t('ai.workflow_confirm', { workflowName }, sessionContext.language),
-      footer: this.i18n.t('ai.confirm_footer', {}, sessionContext.language),
+      content: this.i18n.t('common.ai.workflow_confirm', { workflowName }, sessionContext.language),
+      footer: this.i18n.t('common.ai.confirm_footer', {}, sessionContext.language),
       language: sessionContext.language,
     })
   }

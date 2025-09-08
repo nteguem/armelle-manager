@@ -249,6 +249,7 @@ export default class IgsCalculationsController extends BaseController {
   /**
    * Récupère les calculs IGS d'un utilisateur bot spécifique
    */
+
   async getByBotUser(ctx: HttpContext) {
     try {
       const { params, request } = ctx
@@ -269,18 +270,20 @@ export default class IgsCalculationsController extends BaseController {
       formattedData.data = formattedData.data.map((calc: any) => ({
         id: calc.id,
         company_info: {
-          name: calc.company_name,
-          type: calc.company_type,
+          name: calc.companyName,
+          type: calc.companyType,
           sector: calc.sector,
           subcategory: calc.subcategory,
         },
         financial_data: {
-          year_range: `${calc.previous_year}-${calc.current_year}`,
-          previous_year_revenue: calc.previous_year_revenue,
-          calculated_igs: calc.calculated_igs,
-          formatted_igs: calc.calculated_igs.toLocaleString('fr-FR') + ' FCFA',
+          previous_year: calc.previousYear,
+          current_year: calc.currentYear,
+          year_range: `${calc.previousYear}-${calc.currentYear}`,
+          previous_year_revenue: calc.previousYearRevenue,
+          current_year_estimate: calc.currentYearEstimate,
+          calculated_igs: calc.calculatedIgs,
         },
-        created_at: calc.created_at,
+        created_at: calc.createdAt,
       }))
 
       return this.paginated(ctx, formattedData.data, {
