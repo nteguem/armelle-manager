@@ -9,57 +9,34 @@ export const AI_CONFIG = {
   // Configuration Anthropic
   anthropic: {
     model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
-    maxTokens: Number.parseInt(process.env.ANTHROPIC_MAX_TOKENS || '500'),
-    temperature: Number.parseFloat(process.env.ANTHROPIC_TEMPERATURE || '0.7'),
+    maxTokens: 400,
+    temperature: 0.3,
   },
 
-  // Limites et seuils
+  // Limites
   limits: {
     maxHistoryMessages: 5,
-    maxContextTokens: 2000,
     maxResponseLength: 500,
   },
 
   // Détection d'intention
   intent: {
-    confidenceThreshold: 0.7,
-    suggestionThreshold: 0.8,
     requireConfirmation: true,
-  },
-
-  // Cache (pour économiser les tokens)
-  cache: {
-    enabled: true,
-    ttlSeconds: 300, // 5 minutes
-    maxEntries: 100,
-  },
-
-  // Timeouts
-  timeouts: {
-    apiCallMs: 30000, // 30 secondes
-    contextBuildMs: 5000,
   },
 }
 
-// Workflows et leurs mots-clés pour la détection
+// Mots-clés de fallback (si l'IA ne répond pas)
 export const WORKFLOW_KEYWORDS = {
   'igs-calculator': {
-    fr: ['igs', 'salaire', 'impôt', 'calculer', 'calcul', 'paie'],
-    en: ['igs', 'salary', 'tax', 'calculate', 'calculation', 'payroll'],
+    fr: ['igs', 'salaire', 'impôt', 'calculer'],
+    en: ['igs', 'salary', 'tax', 'calculate'],
   },
-
-  'tax-declaration': {
-    fr: ['déclarer', 'déclaration', 'télédéclaration', 'déclarer impôt'],
-    en: ['declare', 'declaration', 'file tax', 'submit'],
+  'niu-finder': {
+    fr: ['retrouver niu', 'perdu niu', 'trouver niu'],
+    en: ['find niu', 'lost niu'],
   },
-
-  'tax-schedule': {
-    fr: ['échéance', 'calendrier', 'date', 'paiement', 'quand payer'],
-    en: ['deadline', 'calendar', 'date', 'payment', 'when to pay'],
-  },
-
-  'registration-request': {
-    fr: ['immatriculation', 'entreprise', 'créer', 'enregistrer', 'niu'],
-    en: ['registration', 'company', 'create', 'register', 'niu'],
+  'niu-request': {
+    fr: ['demande niu', 'nouveau niu', 'obtenir niu'],
+    en: ['request niu', 'new niu'],
   },
 }

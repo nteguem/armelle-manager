@@ -1,5 +1,3 @@
-// app/bot/core/ai/providers/anthropic_provider.ts
-
 import Anthropic from '@anthropic-ai/sdk'
 import type { AIProvider, AIRequest, AIResponse } from '#bot/types/ai_types'
 import logger from '@adonisjs/core/services/logger'
@@ -8,8 +6,6 @@ export class AnthropicProvider implements AIProvider {
   name = 'anthropic'
   private client: Anthropic | null = null
   private initialized = false
-  private requestCount = 0
-  private errorCount = 0
 
   async initialize(config: any): Promise<void> {
     try {
@@ -35,25 +31,20 @@ export class AnthropicProvider implements AIProvider {
     }
 
     try {
-      this.requestCount++
-
-      const language = request.context.sessionContext.language
-      const systemMessage =
-        language === 'fr'
-          ? `Tu es Armelle, l'assistant fiscal virtuel du Cameroun. Tu dois TOUJOURS répondre en FRANÇAIS.`
-          : `You are Armelle, the virtual tax assistant for Cameroon. You must ALWAYS respond in ENGLISH.`
+      const systemMessage = this.buildSystemMessage(request)
+      const messages = [
+        {
+          role: 'user' as const,
+          content: request.message,
+        },
+      ]
 
       const completion = await this.client.messages.create({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: request.options?.maxTokens || 1024,
-        temperature: request.options?.temperature || 0.7,
+        model: process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-20250514',
+        max_tokens: 400,
+        temperature: 0.3,
         system: systemMessage,
-        messages: [
-          {
-            role: 'user',
-            content: request.message,
-          },
-        ],
+        messages: messages,
       })
 
       const responseText = completion.content
@@ -69,10 +60,63 @@ export class AnthropicProvider implements AIProvider {
         },
       }
     } catch (error: any) {
-      this.errorCount++
       logger.error('Anthropic API error:', error)
-      throw error
+      throw new Error(`Anthropic API call failed: ${error.message}`)
     }
+  }
+
+  private buildSystemMessage(request: AIRequest): string {
+    const language = request.context.sessionContext.language
+    const workflows = this.formatWorkflows(request.context.availableWorkflows, language)
+
+    return language === 'fr'
+      ? `Tu es Armelle, assistante fiscale camerounaise.
+
+Fonctionnalités que tu peux lancer:
+${workflows}
+
+INSTRUCTIONS STRICTES:
+1. Analyse le message de l'utilisateur
+2. Compare-le avec les descriptions des fonctionnalités ci-dessus
+3. DÉTECTION:
+   - Si le message correspond CLAIREMENT à une fonctionnalité → Réponds EXACTEMENT: "Je peux [action]. Souhaitez-vous continuer ?"
+   - Si "que sais-tu faire" → Liste les fonctionnalités + "Je peux aussi répondre à vos questions sur la fiscalité camerounaise"
+   - Sinon → Réponse conversationnelle normale
+
+EXEMPLES DE DÉTECTION:
+- "j'ai perdu mon NIU" → "Je peux vous aider à retrouver votre NIU. Souhaitez-vous continuer ?"
+- "calcule mon IGS" → "Je peux calculer votre IGS. Souhaitez-vous continuer ?"
+- "comment retrouver mon NIU" → "Je peux vous aider à retrouver votre NIU. Souhaitez-vous continuer ?"
+
+IMPORTANT: Ne propose une fonctionnalité QUE si l'utilisateur veut FAIRE cette action.`
+      : `You are Armelle, Cameroon tax assistant.
+
+Features you can launch:
+${workflows}
+
+STRICT INSTRUCTIONS:
+1. Analyze the user's message
+2. Compare it with the feature descriptions above
+3. DETECTION:
+   - If message CLEARLY matches a feature → Respond EXACTLY: "I can [action]. Would you like to proceed?"
+   - If "what can you do" → List features + "I can also answer your questions about Cameroon taxation"
+   - Otherwise → Normal conversational response
+
+DETECTION EXAMPLES:
+- "I lost my NIU" → "I can help you find your NIU. Would you like to proceed?"
+- "calculate my IGS" → "I can calculate your IGS. Would you like to proceed?"
+
+IMPORTANT: Only propose a feature if the user wants to DO that action.`
+  }
+
+  private formatWorkflows(workflows: any[], language: string): string {
+    return workflows
+      .map((w) => {
+        const name = typeof w.name === 'function' ? w.name(language) : w.name
+        const desc = typeof w.description === 'function' ? w.description(language) : w.description
+        return `- ${name}: ${desc}`
+      })
+      .join('\n')
   }
 
   isAvailable(): boolean {
@@ -81,9 +125,8 @@ export class AnthropicProvider implements AIProvider {
 
   getUsageStats(): any {
     return {
-      requestCount: this.requestCount,
-      errorCount: this.errorCount,
-      errorRate: this.requestCount > 0 ? this.errorCount / this.requestCount : 0,
+      provider: this.name,
+      isAvailable: this.isAvailable(),
     }
   }
 }

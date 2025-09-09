@@ -19,23 +19,23 @@ export class AIHandler extends BaseHandler {
   }
 
   async handle(context: StateContext, input: string): Promise<HandlerResult> {
-    // Gestion de la confirmation
+    // Gestion de la confirmation de workflow
     if (context.currentState === BotState.AI_WAITING_CONFIRM) {
-      return this.handleConfirmation(context, input)
+      return this.handleWorkflowConfirmation(context, input)
     }
 
     try {
-      // Obtenir la réponse de l'IA
+      // Traitement normal avec l'IA
       const aiResponse = await this.aiEngine.processMessage(input, context.session)
 
-      // Vérifier si un workflow a été détecté
+      // Vérifier si un workflow a été détecté et sauvegardé
       const updatedSession = await this.sessionManager.getOrCreateSession(
         context.session.channel,
         context.session.channelUserId
       )
 
       if (updatedSession.workflowData?.pendingWorkflow) {
-        // Workflow détecté, passer en mode confirmation
+        // Workflow détecté → transition vers confirmation
         return {
           success: true,
           message: aiResponse,
@@ -46,7 +46,7 @@ export class AIHandler extends BaseHandler {
         }
       }
 
-      // Réponse normale
+      // Réponse conversationnelle normale
       return this.successResult(aiResponse, BotState.IDLE)
     } catch (error: any) {
       this.log('error', 'AI processing failed', context, { error: error.message })
@@ -59,16 +59,23 @@ export class AIHandler extends BaseHandler {
     }
   }
 
-  private async handleConfirmation(context: StateContext, input: string): Promise<HandlerResult> {
+  /**
+   * Gérer la confirmation de workflow
+   */
+  private async handleWorkflowConfirmation(
+    context: StateContext,
+    input: string
+  ): Promise<HandlerResult> {
     const normalized = input.toLowerCase().trim()
+    const language = context.session.language
     const pendingWorkflow = context.stateData?.pendingWorkflow
 
     if (!pendingWorkflow) {
-      return this.handle(context, input)
+      // Pas de workflow en attente, traiter comme message normal
+      return this.handle({ ...context, currentState: BotState.IDLE }, input)
     }
 
     // Mots de confirmation selon la langue
-    const language = context.session.language
     const confirmWords =
       language === 'fr'
         ? ['oui', 'yes', 'ok', "d'accord", 'daccord', 'commence', 'commencer']
@@ -79,16 +86,13 @@ export class AIHandler extends BaseHandler {
         ? ['non', 'no', 'pas', 'annule', 'annuler']
         : ['no', 'nope', 'cancel', 'stop', 'abort']
 
-    // Nettoyer le workflow en attente
-    await this.sessionManager.updateSessionContext(context.session, {
-      workflowData: {
-        ...context.session.workflowData,
-        pendingWorkflow: undefined,
-      },
-    })
+    // Nettoyer le workflow en attente après traitement
+    await this.cleanupPendingWorkflow(context.session)
 
     if (confirmWords.some((word) => normalized.includes(word))) {
-      // Lancer le workflow
+      // Confirmation → lancer le workflow
+      this.log('info', 'Workflow confirmed by user', context, { workflowId: pendingWorkflow })
+
       return {
         success: true,
         nextState: BotState.USER_WORKFLOW,
@@ -97,21 +101,41 @@ export class AIHandler extends BaseHandler {
     }
 
     if (denyWords.some((word) => normalized.includes(word))) {
-      // Annuler et continuer la conversation
+      // Refus → retour à la conversation
       const message =
         language === 'fr'
-          ? "D'accord, continuons notre conversation."
-          : "Alright, let's continue our conversation."
+          ? "D'accord, continuons notre conversation. Comment puis-je vous aider ?"
+          : "Alright, let's continue our conversation. How can I help you?"
 
       const formatted = this.buildMessage(message, context, { useDefaultFooter: true })
 
-      // Nettoyer le cache de l'IA pour cette session
-      this.aiEngine.clearSessionCache(context.session)
+      this.log('info', 'Workflow denied by user', context, { workflowId: pendingWorkflow })
 
       return this.successResult(formatted, BotState.IDLE)
     }
 
-    // Ambigu, traiter comme une nouvelle conversation
-    return this.handle(context, input)
+    // Réponse ambiguë → traiter comme nouveau message
+    this.log('warn', 'Ambiguous response to workflow confirmation', context, {
+      input: normalized,
+      pendingWorkflow,
+    })
+
+    return this.handle({ ...context, currentState: BotState.IDLE }, input)
+  }
+
+  /**
+   * Nettoyer le workflow en attente
+   */
+  private async cleanupPendingWorkflow(session: any): Promise<void> {
+    try {
+      await this.sessionManager.updateSessionContext(session, {
+        workflowData: {
+          ...session.workflowData,
+          pendingWorkflow: undefined,
+        },
+      })
+    } catch (error) {
+      this.log('warn', 'Failed to cleanup pending workflow', error)
+    }
   }
 }

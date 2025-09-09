@@ -4,10 +4,8 @@ import I18nManager from '#bot/core/managers/i18n_manager'
 import MessageBuilder from '#bot/core/managers/message_builder'
 import SessionManager from '#bot/core/managers/session_manager'
 import { WorkflowRegistry } from '#bot/core/workflow/registry/workflow_registry'
-import BotMessage from '#models/bot/bot_message'
-import BotSession from '#models/bot/bot_session'
-import type { AIProvider, WorkflowInfo } from '#bot/types/ai_types'
-import type { SessionContext, SupportedLanguage } from '#bot/types/bot_types'
+import type { AIProvider, AIRequest, AIResponse } from '#bot/types/ai_types'
+import type { SessionContext } from '#bot/types/bot_types'
 import logger from '@adonisjs/core/services/logger'
 
 export default class AIEngine {
@@ -16,17 +14,16 @@ export default class AIEngine {
   private contextBuilder: ContextBuilder
   private i18n: I18nManager
   private messageBuilder: MessageBuilder
-  private workflowRegistry: WorkflowRegistry
   private sessionManager: SessionManager
+  private workflowRegistry: WorkflowRegistry
   private initialized = false
-  private conversationCache: Map<string, string[]> = new Map()
 
   private constructor() {
     this.contextBuilder = new ContextBuilder()
     this.i18n = I18nManager.getInstance()
     this.messageBuilder = new MessageBuilder()
-    this.workflowRegistry = WorkflowRegistry.getInstance()
     this.sessionManager = SessionManager.getInstance()
+    this.workflowRegistry = WorkflowRegistry.getInstance()
   }
 
   public static getInstance(): AIEngine {
@@ -42,7 +39,6 @@ export default class AIEngine {
     if (providerName === 'anthropic') {
       this.provider = new AnthropicProvider()
       await this.provider.initialize({
-        name: 'anthropic',
         apiKey: process.env.ANTHROPIC_API_KEY,
       })
     }
@@ -54,306 +50,209 @@ export default class AIEngine {
   async processMessage(message: string, sessionContext: SessionContext): Promise<string> {
     try {
       if (!this.isAvailable()) {
-        return this.messageBuilder.build({
-          content: this.i18n.t('errors.ai_unavailable', {}, sessionContext.language),
-          footer: this.i18n.t('common.footer_options', {}, sessionContext.language),
-          language: sessionContext.language,
-        })
+        return this.buildErrorMessage('errors.ai_unavailable', sessionContext)
       }
 
-      // Détecter l'intention de workflow
-      const detectedWorkflow = await this.detectWorkflowIntent(message, sessionContext)
+      // Construire le contexte
+      const context = await this.contextBuilder.build(sessionContext)
 
-      if (detectedWorkflow) {
-        return this.handleWorkflowDetection(detectedWorkflow, sessionContext)
+      // Créer la requête pour l'IA
+      const request: AIRequest = {
+        message,
+        context,
+        options: {
+          maxTokens: 400,
+          temperature: 0.3,
+        },
       }
 
-      // Générer une réponse conversationnelle
-      return await this.generateConversationalResponse(message, sessionContext)
+      // Appeler l'IA - C'est elle qui décide !
+      const response = await this.provider!.generateResponse(request)
+
+      // Vérifier si l'IA propose une action
+      const proposesAction = this.isProposingAction(response.message, sessionContext.language)
+
+      if (proposesAction) {
+        // L'IA a détecté un workflow, on doit juste trouver lequel
+        const workflow = this.findWorkflowFromAIResponse(response.message, sessionContext)
+
+        if (workflow) {
+          await this.savePendingWorkflow(sessionContext, workflow)
+          logger.info(
+            {
+              sessionKey: `${sessionContext.channel}:${sessionContext.channelUserId}`,
+              detectedWorkflow: workflow,
+            },
+            'Workflow detected by AI'
+          )
+        } else {
+          logger.warn('AI proposed action but workflow not found in registry')
+        }
+
+        return this.buildConfirmationMessage(response.message, sessionContext)
+      }
+
+      // Conversation normale
+      return this.buildConversationalMessage(response.message, sessionContext)
     } catch (error: any) {
       logger.error('AI Engine error:', error)
-      return this.messageBuilder.build({
-        content: this.i18n.t('errors.ai_error', {}, sessionContext.language),
-        footer: this.i18n.t('common.footer_options', {}, sessionContext.language),
-        language: sessionContext.language,
-      })
+      return this.buildErrorMessage('errors.ai_error', sessionContext)
     }
   }
 
-  // Dans detectWorkflowIntent, remplacer cette partie :
+  private isProposingAction(response: string, language: string): boolean {
+    const patterns =
+      language === 'fr' ? /je peux.*souhaitez-vous continuer/i : /i can.*would you like to proceed/i
+    return patterns.test(response)
+  }
 
-  // Solution 1: Utiliser des type guards pour clarifier les types
-  private async detectWorkflowIntent(
-    message: string,
-    sessionContext: SessionContext
-  ): Promise<string | null> {
+  /**
+   * Trouve quel workflow l'IA a identifié en comparant avec les noms des workflows
+   * L'IA a déjà fait le travail de détection, on cherche juste lequel c'est
+   */
+  private findWorkflowFromAIResponse(response: string, sessionContext: SessionContext): any {
     const workflows = this.workflowRegistry.getUserWorkflows(sessionContext)
+    const lang = sessionContext.language
+    const responseLower = response.toLowerCase()
 
+    // L'IA dit "Je peux [action]", on cherche quelle action correspond à quel workflow
     for (const workflow of workflows) {
-      if (!workflow.description) continue
+      // Assertion de type pour éviter l'erreur 'never'
+      const w = workflow as any
+      const workflowName = typeof w.name === 'function' ? w.name(lang) : w.name
+      const workflowNameLower = workflowName.toLowerCase()
 
-      // Type guards pour clarifier les types
-      const workflowName = this.getWorkflowName(workflow, sessionContext.language)
-      const workflowDesc = this.getWorkflowDescription(workflow, sessionContext.language)
+      // Si le nom du workflow est mentionné dans la réponse de l'IA
+      if (responseLower.includes(workflowNameLower)) {
+        return {
+          id: w.id,
+          name: workflowName,
+        }
+      }
 
-      const isMatch = await this.checkWorkflowMatch(
-        message,
-        workflowName,
-        workflowDesc,
-        sessionContext
-      )
+      // Vérifier aussi avec des parties du nom
+      const nameWords = workflowNameLower
+        .split(' ')
+        .filter((word: string | any[]) => word.length > 3)
+      let matchCount = 0
+      for (const word of nameWords) {
+        if (responseLower.includes(word)) {
+          matchCount++
+        }
+      }
 
-      if (isMatch) {
-        logger.info(`Workflow detected: ${workflow.id}`)
-        return workflow.id
+      // Si la majorité des mots du nom sont présents
+      if (nameWords.length > 0 && matchCount >= Math.ceil(nameWords.length * 0.6)) {
+        return {
+          id: w.id,
+          name: workflowName,
+        }
       }
     }
+
+    // En dernier recours, chercher par parties de l'ID
+    for (const workflow of workflows) {
+      // Assertion de type pour éviter l'erreur 'never'
+      const w = workflow as any
+      const idParts = w.id.toLowerCase().split('_')
+      let found = true
+
+      for (const part of idParts) {
+        if (part.length > 2 && !responseLower.includes(part)) {
+          found = false
+          break
+        }
+      }
+
+      if (found) {
+        const workflowName = typeof w.name === 'function' ? w.name(lang) : w.name
+        return {
+          id: w.id,
+          name: workflowName,
+        }
+      }
+    }
+
+    logger.warn(
+      {
+        response: responseLower.substring(0, 100),
+        availableWorkflows: workflows.map((w) => {
+          // Assertion de type pour éviter l'erreur 'never'
+          const workflow = w as any
+          return {
+            id: workflow.id,
+            name: typeof workflow.name === 'function' ? workflow.name(lang) : workflow.name,
+          }
+        }),
+      },
+      'Could not match AI response to any workflow'
+    )
 
     return null
   }
 
-  private async checkWorkflowMatch(
-    message: string,
-    workflowName: string,
-    workflowDescription: string,
-    sessionContext: SessionContext
-  ): Promise<boolean> {
-    if (!this.provider) return false
-
-    const language = sessionContext.language
-    const prompt =
-      language === 'fr'
-        ? `Analyse si cette demande correspond au workflow.
-         Workflow: ${workflowName}
-         Description: ${workflowDescription}
-         Message: "${message}"
-         
-         Réponds UNIQUEMENT "OUI" ou "NON".`
-        : `Analyze if this request matches the workflow.
-         Workflow: ${workflowName}
-         Description: ${workflowDescription}
-         Message: "${message}"
-         
-         Answer ONLY "YES" or "NO".`
-
-    try {
-      const context = await this.contextBuilder.build(sessionContext)
-      const response = await this.provider.generateResponse({
-        message: prompt,
-        context,
-        options: { maxTokens: 10, temperature: 0 },
-      })
-
-      const positiveWords = language === 'fr' ? ['OUI'] : ['YES']
-      return positiveWords.some((word) => response.message.toUpperCase().includes(word))
-    } catch {
-      return false
-    }
-  }
-
-  private async handleWorkflowDetection(
-    workflowId: string,
-    sessionContext: SessionContext
-  ): Promise<string> {
-    const workflow = this.workflowRegistry.get(workflowId)
-    const definition = workflow?.getDefinition()
-
-    if (!definition) {
-      return this.generateConversationalResponse('', sessionContext)
-    }
-
-    const workflowName =
-      typeof definition.name === 'function'
-        ? definition.name(sessionContext.language)
-        : definition.name
-
-    // Sauvegarder le workflow en attente
+  private async savePendingWorkflow(sessionContext: SessionContext, workflow: any): Promise<void> {
     await this.sessionManager.updateSessionContext(sessionContext, {
       workflowData: {
         ...sessionContext.workflowData,
-        pendingWorkflow: workflowId,
+        pendingWorkflow: workflow.id,
+        pendingWorkflowName: workflow.name,
       },
-    })
-
-    return this.messageBuilder.build({
-      content: this.i18n.t('common.ai.workflow_confirm', { workflowName }, sessionContext.language),
-      footer: this.i18n.t('common.ai.confirm_footer', {}, sessionContext.language),
-      language: sessionContext.language,
     })
   }
 
-  private async generateConversationalResponse(
-    message: string,
-    sessionContext: SessionContext
-  ): Promise<string> {
-    if (!this.provider) {
-      return this.messageBuilder.build({
-        content: this.i18n.t('errors.ai_unavailable', {}, sessionContext.language),
-        footer: this.i18n.t('common.footer_options', {}, sessionContext.language),
-        language: sessionContext.language,
-      })
+  private buildConfirmationMessage(response: string, sessionContext: SessionContext): string {
+    const hasInstructions = /répondez.*oui.*non|reply.*yes.*no/i.test(response)
+
+    let fullMessage = response
+    if (!hasInstructions) {
+      const instructions =
+        sessionContext.language === 'fr'
+          ? '\n\nRépondez "oui" pour commencer ou "non" pour continuer notre conversation.'
+          : '\n\nReply "yes" to start or "no" to continue our conversation.'
+      fullMessage += instructions
     }
 
-    // Récupérer l'historique
-    const conversationHistory = await this.getConversationHistory(sessionContext)
-
-    // Construire le contexte
-    const context = await this.contextBuilder.build(sessionContext)
-
-    // Créer le prompt complet
-    const workflowList = context.availableWorkflows
-      .map((w) => {
-        const name = typeof w.name === 'function' ? w.name(sessionContext.language) : w.name
-        const desc =
-          typeof w.description === 'function'
-            ? w.description(sessionContext.language)
-            : w.description
-        return `- ${name}: ${desc}`
-      })
-      .join('\n')
-
-    const recentHistory = conversationHistory.slice(-10).join('\n')
-
-    const language = sessionContext.language
-    const fullPrompt =
-      language === 'fr'
-        ? `Contexte: Tu es Armelle, assistant fiscal du Cameroun.
-         
-         RÈGLES IMPORTANTES:
-         1. Réponds TOUJOURS en FRANÇAIS
-         2. Ne jamais faire le travail des workflows suivants:
-         ${workflowList}
-         3. Ne jamais mentionner les commandes (menu, armelle, etc.)
-         
-         Historique récent:
-         ${recentHistory}
-         
-         Question de l'utilisateur: ${message}
-         
-         Réponds de manière professionnelle et précise sur la fiscalité camerounaise.`
-        : `Context: You are Armelle, Cameroon tax assistant.
-         
-         IMPORTANT RULES:
-         1. ALWAYS respond in ENGLISH
-         2. Never do the work of these workflows:
-         ${workflowList}
-         3. Never mention commands (menu, armelle, etc.)
-         
-         Recent history:
-         ${recentHistory}
-         
-         User question: ${message}
-         
-         Respond professionally and accurately about Cameroon taxation.`
-
-    // Générer la réponse
-    const response = await this.provider.generateResponse({
-      message: fullPrompt,
-      context,
-      options: {
-        maxTokens: 500,
-        temperature: 0.7,
-      },
-    })
-
-    // Sauvegarder dans l'historique
-    await this.saveToHistory(sessionContext, message, response.message)
-
     return this.messageBuilder.build({
-      content: response.message,
+      content: fullMessage,
       footer: this.i18n.t('common.footer_options', {}, sessionContext.language),
       language: sessionContext.language,
     })
   }
 
-  private async getConversationHistory(sessionContext: SessionContext): Promise<string[]> {
-    const sessionKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
-
-    if (this.conversationCache.has(sessionKey)) {
-      return this.conversationCache.get(sessionKey) || []
-    }
-
-    try {
-      const botSession = await BotSession.findActiveSession(
-        sessionContext.channel,
-        sessionContext.channelUserId
-      )
-
-      if (botSession) {
-        const messages = await BotMessage.query()
-          .where('bot_session_id', botSession.id)
-          .orderBy('created_at', 'desc')
-          .limit(20)
-
-        const userLabel = sessionContext.language === 'fr' ? 'Utilisateur' : 'User'
-        const assistantLabel = sessionContext.language === 'fr' ? 'Assistant' : 'Assistant'
-
-        const history = messages
-          .reverse()
-          .map((msg) => `${msg.direction === 'in' ? userLabel : assistantLabel}: ${msg.content}`)
-
-        this.conversationCache.set(sessionKey, history)
-        return history
-      }
-    } catch (error) {
-      logger.error('Error loading history:', error)
-    }
-
-    return []
+  private buildConversationalMessage(response: string, sessionContext: SessionContext): string {
+    return this.messageBuilder.build({
+      content: response,
+      footer: this.i18n.t('common.footer_options', {}, sessionContext.language),
+      language: sessionContext.language,
+    })
   }
 
-  private async saveToHistory(
-    sessionContext: SessionContext,
-    userMessage: string,
-    aiResponse: string
-  ): Promise<void> {
-    const sessionKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
-    const history = this.conversationCache.get(sessionKey) || []
-
-    const userLabel = sessionContext.language === 'fr' ? 'Utilisateur' : 'User'
-    const assistantLabel = sessionContext.language === 'fr' ? 'Assistant' : 'Assistant'
-
-    history.push(`${userLabel}: ${userMessage}`)
-    history.push(`${assistantLabel}: ${aiResponse}`)
-
-    if (history.length > 20) {
-      history.splice(0, history.length - 20)
-    }
-
-    this.conversationCache.set(sessionKey, history)
+  private buildErrorMessage(errorKey: string, sessionContext: SessionContext): string {
+    return this.messageBuilder.build({
+      content: this.i18n.t(errorKey, {}, sessionContext.language),
+      footer: this.i18n.t('common.footer_options', {}, sessionContext.language),
+      language: sessionContext.language,
+    })
   }
 
   isAvailable(): boolean {
     return this.initialized && this.provider !== null && this.provider.isAvailable()
   }
 
-  clearSessionCache(sessionContext: SessionContext): void {
-    const sessionKey = `${sessionContext.channel}:${sessionContext.channelUserId}`
-    this.conversationCache.delete(sessionKey)
-  }
-
   getStats() {
     return {
       available: this.isAvailable(),
       provider: this.provider?.name || 'none',
-      cachedSessions: this.conversationCache.size,
     }
   }
 
-  // Méthodes helper avec type guards
-  private getWorkflowName(workflow: WorkflowInfo, language: string): string {
-    if (typeof workflow.name === 'function') {
-      return workflow.name(language as SupportedLanguage)
-    }
-    return workflow.name
+  clearSessionCache(sessionContext: SessionContext): void {
+    // Pas de cache pour le moment
   }
 
-  private getWorkflowDescription(workflow: WorkflowInfo, language: string): string {
-    if (!workflow.description) return ''
-
-    if (typeof workflow.description === 'function') {
-      return workflow.description(language as SupportedLanguage)
-    }
-    return workflow.description
+  cleanup(): void {
+    this.provider = null
+    this.initialized = false
   }
 }

@@ -110,9 +110,20 @@ export class BotOrchestrator {
       return this.handleMenuSelection(context, input)
     }
 
-    // États IA - CORRECTION ICI
+    // États IA - CORRECTION CRITIQUE ICI
     if (currentState === BotState.IDLE || currentState === BotState.AI_WAITING_CONFIRM) {
       const result = await this.aiHandler.handle(context, input)
+
+      // Log pour debug
+      logger.info(
+        {
+          currentState,
+          resultNextState: result.nextState,
+          resultStateData: result.stateData,
+          hasWorkflowId: !!result.stateData?.workflowId,
+        },
+        'AI Handler result'
+      )
 
       // Si l'IA veut changer d'état ET que c'est possible
       if (result.nextState && result.nextState !== currentState) {
@@ -128,12 +139,20 @@ export class BotOrchestrator {
             'ai_response',
             result.stateData
           )
-        }
-      }
 
-      // Si on doit lancer un workflow
-      if (result.nextState === BotState.USER_WORKFLOW && result.stateData?.workflowId) {
-        return this.startWorkflow(context, result.stateData.workflowId)
+          // CORRECTION: Si on vient de transitionner vers USER_WORKFLOW, lancer le workflow
+          if (result.nextState === BotState.USER_WORKFLOW && result.stateData?.workflowId) {
+            logger.info(
+              {
+                workflowId: result.stateData.workflowId,
+                currentState: context.currentState,
+              },
+              'Starting workflow after state transition'
+            )
+
+            return this.startWorkflow(context, result.stateData.workflowId)
+          }
+        }
       }
 
       return result.message || null
@@ -230,16 +249,28 @@ export class BotOrchestrator {
       return 'Je suis là pour vous aider. Que puis-je faire pour vous ?'
     }
 
-    //Récupérer correctement les options du menu depuis stateData
+    // Récupérer correctement les options du menu depuis stateData
     const menuOptions = context.stateData?.menuOptions || []
     const workflowId = menuOptions[selection - 1]
 
-    console.log('Menu selection:', { selection, menuOptions, workflowId })
+    logger.info(
+      {
+        selection,
+        menuOptions,
+        workflowId,
+      },
+      'Menu selection processing'
+    )
 
     if (!workflowId) {
       await this.stateController.transition(context, BotState.IDLE, 'invalid_menu_selection')
       return 'Sélection invalide. Que puis-je faire pour vous ?'
     }
+
+    // Transition vers USER_WORKFLOW puis démarrer le workflow
+    await this.stateController.transition(context, BotState.USER_WORKFLOW, 'menu_selection', {
+      workflowId,
+    })
 
     return this.startWorkflow(context, workflowId)
   }
@@ -265,9 +296,17 @@ export class BotOrchestrator {
 
     const result = await executor.start()
 
-    await this.stateController.transition(context, BotState.USER_WORKFLOW, 'workflow_start', {
-      workflowId,
-    })
+    // CORRECTION: Ne pas faire de transition ici car on est déjà en USER_WORKFLOW
+    // Seulement logguer le démarrage
+    logger.info(
+      {
+        workflowId,
+        sessionKey,
+        stepId: result.nextStepId,
+        currentState: context.currentState,
+      },
+      'Workflow started successfully'
+    )
 
     return result.message || null
   }

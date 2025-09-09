@@ -15,6 +15,9 @@ import logger from '@adonisjs/core/services/logger'
 import IGSService from './igs_service.js'
 import NIUFinderService from './niu_finder_service.js'
 import NIURequestService from './niu_request_service.js'
+import { NIURequestWorkflow } from '#bot/core/workflow/definitions/user/niu_request.workflow'
+import { NIUFinderWorkflow } from '#bot/core/workflow/definitions/user/niu_finder.workflow'
+import { IGSCalculatorWorkflow } from '#bot/core/workflow/definitions/user/igs_calculator.workflow'
 
 export default class BotService {
   private orchestrator: BotOrchestrator
@@ -106,17 +109,7 @@ export default class BotService {
     )
     registry.register(OnboardingWorkflow)
     // Workflows utilisateur
-    const { IGSCalculatorWorkflow } = await import(
-      '#bot/core/workflow/definitions/user/igs_calculator.workflow'
-    )
     registry.register(IGSCalculatorWorkflow)
-    const { NIUFinderWorkflow } = await import(
-      '#bot/core/workflow/definitions/user/niu_finder.workflow'
-    )
-
-    const { NIURequestWorkflow } = await import(
-      '#bot/core/workflow/definitions/user/niu_request.workflow'
-    )
     registry.register(NIURequestWorkflow)
     registry.register(NIUFinderWorkflow)
 

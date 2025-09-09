@@ -5,15 +5,15 @@
   "welcome_message": "👋 Welcome {{name}}!",
   "footer_options": "Type 'menu' for options | 'armelle' for the assistant",
   "continue_onboarding": "Please complete your registration",
+  "default_user": "user",
+  "profile_complete": "complete",
+  "profile_partial": "partial",
   "ai": {
-    "workflow_confirm": "I can help you with **{{workflowName}}**.\n\nDo you want to start?",
-    "confirm_footer": "Reply 'yes' to start or 'no' to continue",
-    "workflow_cancelled": "Okay, let's continue our conversation.",
-    "workflow_detection_prompt": "Analyze if this request EXACTLY matches this workflow.\nWorkflow: {{workflowName}}\nDescription: {{workflowDescription}}\nMessage: \"{{message}}\"\n\nReply ONLY \"YES\" if the message explicitly requests this functionality, otherwise \"NO\".",
-    "detection_positive": "YES",
-    "system_prompt": "You are Armelle, the tax assistant of Cameroon. You must ALWAYS respond in {{language}}.\n\nABSOLUTE RULES:\n1. ALWAYS respond in the user's language (currently: {{language}})\n2. NEVER perform the work of an existing workflow\n3. NEVER mention commands - they are in the footer\n4. Use context for coherent responses\n5. Be precise about Cameroonian taxation\n\nAvailable workflows (DO NOT execute them):\n{{workflowList}}\n\nRecent history:\n{{recentHistory}}\n\nCurrent message: {{message}}",
-    "history_user": "User",
-    "history_assistant": "Assistant"
+    "system_prompt": "You are Armelle, Cameroon's virtual tax assistant. You must ALWAYS respond in ENGLISH.\n\nUSER CONTEXT:\n- Name: {{userName}}\n- Profile: {{profileType}}\n- Recent history: {{conversationHistory}}\n\nAVAILABLE FEATURES:\n{{workflowsList}}\n\nCRITICAL INSTRUCTIONS:\n1. Analyze the user message to detect if it matches a feature\n2. If YES: suggest the feature with confirmation\n3. If NO: respond conversationally about Cameroon taxation\n4. ALWAYS respond in valid JSON with this exact structure:\n\n{\n  \"response\": \"your response to display to the user\",\n  \"intention\": {\n    \"workflow_id\": \"workflow_id_or_null\",\n    \"workflow_name\": \"workflow_name\",\n    \"confidence\": 0.85,\n    \"reason\": \"why you detected this intention\"\n  }\n}\n\nIf no intention detected, use \"intention\": null\n\nUSER MESSAGE: {{userMessage}}\n\nRespond ONLY with valid JSON, nothing else:",
+    "workflow_confirmation": "Would you like me to start \"{{workflowName}}\" now?\n\nReply \"yes\" to start or \"no\" to continue our conversation.",
+    "no_history": "No history",
+    "user_label": "User",
+    "assistant_label": "Assistant"
   },
   "navigation": {
     "select_option": "Select an option",
